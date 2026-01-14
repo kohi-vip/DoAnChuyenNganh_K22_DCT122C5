@@ -1,0 +1,261 @@
+**Abstract**
+- Tập trung giới thiệu mô hình mới: Transformer
+- Giới thiệu kết quả điểm BLEU trên 2 mô hình dịch máy áp dụng kiến trúc kể trên: 28.4 cho dịch từ Anh sang Đức trong bài thi WMT 2014; 41.8 cho bài dịch từ Anh sang Pháp sau khi treo 8 CPUs chạy 3.5 ngày. Huấn luyện cho ra kết quả tốt hơn kể cả với bộ dữ liệu lớn và hạn chế.
+1. Introduction
+-Các cấu trúc thuật toán xử lý cũ: RNN, LSTM, GRNN
+-> Hạn chế: Giới hạn cơ bản của thuật toán tính toán tuần tự vẫn tồn tại, sau khi tính toán để cho ra được giá trị h_t, khi thuật toán tính toán tới được một thứ tự nhất định, các dữ liệu cũ của mô hình training bị "quên" đi
+-Cơ chế Attention đã được phát triển để khắc phục nhược điểm này: chủ yếu thực hiện trên RNN
+-Đề xuất Transformer, mô hình phù thuộc hoàn toàn vào cơ chế attention.
+
+2. Background
+-Mô hình sequence modeling và transduction truyền thống dựa vào RNN/CNN phức tạp bao gồm encoder-decoder
+-Các mô hình tốt nhất đều sử dụng cơ chế attention kết nối encoder và decoder
+-Extended Neural GPU, ByteNet, ConvS2S sử dụng CNN làm khối xây dựng cơ bản, tính toán song song nhưng số bước để học phụ thuộc xa tăng theo khoảng cách (linearly cho ConvS2S, logarithmically cho ByteNet)
+-Transformer giảm xuống còn số bước constant, mặc dù giảm độ phân giải hiệu quả do averaging attention-weighted positions (được bù đắp bởi Multi-Head Attention)
+-Self-attention (intra-attention): cơ chế attention liên kết các vị trí khác nhau của một sequence đơn để tính toán representation của sequence đó
+-Transformer là mô hình transduction đầu tiên chỉ dựa hoàn toàn vào self-attention, không dùng RNN/CNN
+
+3. Model Architecture
+
+|-3.1. Encoder and Decoder Stacks
+-Encoder: Stack 6 layers giống hệt nhau
+  + Mỗi layer có 2 sub-layers: 
+    * Multi-head self-attention mechanism
+    * Position-wise fully connected feed-forward network
+  + Sử dụng residual connection quanh mỗi sub-layer, sau đó layer normalization
+  + Output của mỗi sub-layer: LayerNorm(x + Sublayer(x))
+  + Tất cả sub-layers và embedding layers tạo output dimension d_model = 512
+
+-Decoder: Stack 6 layers giống hệt nhau
+  + Mỗi layer có 3 sub-layers (thêm 1 sub-layer so với encoder):
+    * Masked multi-head self-attention (sub-layer 1)
+    * Multi-head attention nhận output từ encoder (sub-layer 2) 
+    * Position-wise feed-forward network (sub-layer 3)
+  + Cũng sử dụng residual connection và layer normalization
+  + Masking trong self-attention đảm bảo predictions cho vị trí i chỉ phụ thuộc vào outputs đã biết tại các vị trí < i (ngăn chặn leftward information flow)
+
+|-3.2. Attention
+
+    |-3.2.1. Scaled Dot-Product Attention
+    -Input gồm: queries, keys có dimension d_k, và values có dimension d_v
+    -Công thức: Attention(Q,K,V) = softmax(QK^T/√d_k)V
+    -Giải thích:
+      + Tính dot products của query với tất cả keys
+      + Chia mỗi kết quả cho √d_k (scaling factor)
+      + Áp dụng softmax để có weights cho values
+    -Lý do scaling: Khi d_k lớn, dot products có magnitude lớn, đẩy softmax vào vùng gradients cực nhỏ
+    -So sánh với Additive attention: Dot-product nhanh hơn và space-efficient hơn (có thể dùng matrix multiplication), nhưng cần scaling khi d_k lớn
+
+    |-3.2.2. Multi-Head Attention
+    -Thay vì single attention function với d_model dimensions
+    -Thực hiện h lần attention song song với các learned linear projections khác nhau:
+      + Queries, keys, values được project xuống d_k, d_k, d_v dimensions (h lần)
+      + Mỗi projected version chạy attention song song → d_v-dimensional output
+      + Concatenate và project lại
+    -Công thức: 
+      + MultiHead(Q,K,V) = Concat(head_1,...,head_h)W^O
+      + head_i = Attention(QW_i^Q, KW_i^K, VW_i^V)
+    -Trong paper: h=8 parallel attention layers (heads), d_k = d_v = d_model/h = 64
+    -Ý nghĩa: Cho phép model attend to information từ các representation subspaces khác nhau tại các positions khác nhau
+    -Chi phí tính toán tương tự single-head attention với full dimensionality do dimension bị giảm
+
+    |-3.2.3. Application of Attention in our Model
+    -Transformer sử dụng multi-head attention theo 3 cách khác nhau:
+    1- Encoder-decoder attention layers:
+       + Queries từ decoder layer trước
+       + Keys và values từ output của encoder
+       + Cho phép mọi position trong decoder attend to tất cả positions trong input sequence
+       + Mô phỏng encoder-decoder attention mechanisms điển hình trong seq2seq models
+    2- Encoder self-attention layers:
+       + Keys, values, queries đều từ output của encoder layer trước
+       + Mỗi position trong encoder có thể attend to tất cả positions trong encoder layer trước
+    3- Decoder self-attention layers:
+       + Tương tự encoder nhưng có masking
+       + Mỗi position trong decoder chỉ attend to tất cả positions ≤ position đó
+       + Ngăn information flow từ tương lai, preserve auto-regressive property
+    
+|-3.3. Position-wise Feed-Forward Networks
+-Mỗi layer trong encoder và decoder chứa fully connected feed-forward network
+-Áp dụng riêng rẽ và giống hệt nhau cho từng position
+-Gồm 2 linear transformations với ReLU activation ở giữa:
+  + FFN(x) = max(0, xW_1 + b_1)W_2 + b_2
+-Linear transformations giống nhau across positions khác nhau, nhưng sử dụng parameters khác nhau giữa các layers
+-Có thể coi như hai convolutions với kernel size 1
+-Input và output dimensionality d_model = 512
+-Inner-layer dimensionality d_ff = 2048
+
+|-3.4. Embeddings and Softmax  
+-Sử dụng learned embeddings để convert input tokens và output tokens thành vectors có dimension d_model = 512
+-Sử dụng learned linear transformation và softmax để convert decoder output thành predicted next-token probabilities
+-Chia sẻ cùng weight matrix giữa 2 embedding layers và pre-softmax linear transformation (tương tự như trong các papers khác)
+-Trong embedding layers, nhân weights đó với √d_model
+
+|-3.5. Positional Encoding
+-Do model không có recurrence và convolution, cần inject information về relative/absolute position của tokens trong sequence
+-"Positional encodings" được thêm vào input embeddings ở đáy encoder và decoder stacks
+-Positional encodings có cùng dimension d_model = 512 với embeddings → có thể summed
+-Nhiều lựa chọn: learned và fixed positional encodings
+-Paper sử dụng sine và cosine functions với frequencies khác nhau:
+  + PE(pos, 2i) = sin(pos/10000^(2i/d_model))
+  + PE(pos, 2i+1) = cos(pos/10000^(2i/d_model))
+  + pos là position, i là dimension
+-Lý do chọn sinusoidal version:
+  + Có thể cho phép model extrapolate đến sequence lengths dài hơn những gì gặp trong training
+  + Với mọi fixed offset k, PE(pos+k) có thể được biểu diễn như linear function của PE(pos)
+-Thử nghiệm với learned positional embeddings cho kết quả gần như giống hệt
+
+4. Why Self-Attention 
+-So sánh self-attention layers với recurrent và convolutional layers theo 3 tiêu chí:
+1- Complexity per layer (độ phức tạp tính toán mỗi layer)
+2- Amount of computation có thể parallelized (lượng tính toán song song hóa được) - measured by minimum number of sequential operations required
+3- Path length giữa long-range dependencies trong network
+
+-Phân tích chi tiết:
+  + Self-Attention: 
+    * Complexity: O(n²·d) - n là sequence length, d là representation dimension
+    * Sequential Operations: O(1)
+    * Maximum Path Length: O(1)
+  + Recurrent: 
+    * Complexity: O(n·d²)
+    * Sequential Operations: O(n)
+    * Maximum Path Length: O(n)
+  + Convolutional: 
+    * Complexity: O(k·n·d²) - k là kernel width
+    * Sequential Operations: O(1)
+    * Maximum Path Length: O(log_k(n)) với dilated convolutions
+  + Self-Attention (restricted):
+    * Maximum Path Length: O(n/r) khi chỉ xem xét neighborhood size r
+
+-Kết luận:
+  + Khi n < d (thường xảy ra với sentence representations - d=512, 1024), self-attention nhanh hơn recurrent layers
+  + Self-attention có constant sequential operations và path length → học long-range dependencies hiệu quả hơn
+  + Side-benefit: Self-attention có thể yield more interpretable models (có thể visualize attention distributions)
+
+5. Training
+
+|-5.1. Training data and Batching
+-Training Data:
+  + WMT 2014 English-German dataset: ~4.5 triệu sentence pairs
+    * Sentences được encode bằng byte-pair encoding
+    * Shared source-target vocabulary ~37000 tokens
+  + WMT 2014 English-French dataset: ~36 triệu sentences
+    * Tokens được split thành 32000 word-piece vocabulary
+-Batching:
+  + Sentence pairs được batch theo approximate sequence length
+  + Mỗi training batch chứa ~25000 source tokens và 25000 target tokens
+
+|-5.2. Hardware Schedule
+-Hardware: 8 NVIDIA P100 GPUs
+-Training time:
+  + Base models: ~12 giờ (mỗi training step ~0.4 giây)
+  + Big models: 3.5 ngày (mỗi training step ~1.0 giây)
+  + Tổng cộng 100,000 steps (~300,000 steps cho big model)
+
+|-5.3. Optimizer
+-Sử dụng Adam optimizer với β₁=0.9, β₂=0.98, ε=10⁻⁹
+-Vary learning rate trong quá trình training theo công thức:
+  lrate = d_model^(-0.5) · min(step_num^(-0.5), step_num · warmup_steps^(-1.5))
+-Learning rate tăng linearly trong warmup_steps đầu tiên, sau đó giảm tỷ lệ nghịch với square root của step number
+-Sử dụng warmup_steps = 4000
+
+|-5.4. Regularization
+-Áp dụng 3 loại regularization:
+1- Residual Dropout:
+   + Áp dụng dropout cho output của mỗi sub-layer, trước khi add với sub-layer input và normalize
+   + Áp dụng dropout cho sums của embeddings và positional encodings trong encoder và decoder stacks
+   + Base model: P_drop = 0.1
+   
+2- Label Smoothing:
+   + Sử dụng label smoothing value ε_ls = 0.1 trong training
+   + Làm hurt perplexity (model trở nên uncertain hơn)
+   + Nhưng cải thiện accuracy và BLEU score
+   + Giúp model học generalize tốt hơn
+
+6. Results
+|-6.1. Machine Translation
+-WMT 2014 English-to-German translation:
+  + Big transformer model: BLEU = 28.4
+  + Cải thiện hơn 2.0 BLEU so với best previously reported models (bao gồm ensembles)
+  + Training cost: 3.5 ngày trên 8 P100 GPUs (fraction của training costs của best models từ literature)
+  
+-WMT 2014 English-to-French translation:
+  + Big model: BLEU = 41.0
+  + Outperforms tất cả previously published single models
+  + Training cost < 1/4 training cost của previous state-of-the-art model
+  
+-Base model:
+  + Training: 10 minutes/epoch (~12 giờ total)
+  + Kết quả vẫn surpasses nhiều published models và ensembles
+  
+-Ensemble averaging:
+  + Sử dụng 8 checkpoints cuối cùng (saved 10 minutes intervals)
+  + English-to-German: BLEU = 28.4 → 30.2 (với beam search và length penalty α=0.6)
+  + English-to-French: BLEU = 41.0 → 41.8
+
+|-6.2. Model Variations
+-Thực hiện ablation study để đánh giá tầm quan trọng của các components khác nhau
+-Experiments với variations của Transformer base model:
+
+1- Varying number of attention heads:
+   + Single-head attention: giảm 0.9 BLEU (worse quality)
+   + Too many heads (h=32): cũng giảm quality
+   + h=8 là optimal
+
+2- Reducing attention key size (d_k):
+   + Làm hurt model quality
+   + Determining compatibility khó hơn khi dimension nhỏ hơn
+
+3- Model size (d_model, d_ff):
+   + Bigger models tốt hơn
+   + Dropout rất hữu ích trong việc avoid overfitting
+
+4- Replacing sinusoidal positional encoding với learned positional embeddings:
+   + Kết quả gần như giống hệt base model
+   
+-Kết luận: Multi-head attention, appropriate key dimensions, và model size đều quan trọng
+
+|-6.3. English Constituency Parsing 
+-Để đánh giá khả năng generalization của Transformer sang tasks khác ngoài machine translation
+-Thực hiện experiments trên English constituency parsing
+-Task này đặc thù:
+  + Output bị constraints mạnh
+  + Dài hơn đáng kể so với input
+  + RNN seq2seq models chưa có thể achieve state-of-the-art results
+  
+-Setup:
+  + Train trên Wall Street Journal (WSJ) portion của Penn Treebank
+  + ~40K training sentences
+  + Semi-supervised setting: sử dụng thêm BerkleyParser corpus với ~17M sentences
+  
+-Kết quả:
+  + Mặc dù thiếu task-specific tuning
+  + Transformer (4-layer, d_model=1024) đạt kết quả excellent
+  + Outperforms tất cả previously reported models NGOẠI TRỪ Recurrent Neural Network Grammar
+  + WSJ only setting: F1 = 91.3
+  + Semi-supervised setting: F1 = 92.7 (Recurrent Neural Network Grammar đạt 93.3)
+  
+-Ý nghĩa: Chứng minh Transformer generalizes well sang các tasks khác
+
+7. Conclusion
+-Transformer: first sequence transduction model dựa hoàn toàn trên attention, thay thế recurrent layers bằng multi-headed self-attention
+-Ưu điểm:
+  + Train nhanh hơn đáng kể so với architectures based on recurrent/convolutional layers
+  + Đạt state-of-the-art quality trên translation tasks
+  + English-to-German: BLEU 28.4 (improve 2.0 BLEU)
+  + English-to-French: BLEU 41.8 (new state-of-the-art)
+  
+-Excited về tương lai của attention-based models:
+  + Plan áp dụng cho problems khác ngoài text
+  + Plan investigate local, restricted attention mechanisms để efficiently handle large inputs/outputs như images, audio, video
+  + Making generation less sequential là một research goal khác
+  
+-Code availability:
+  + Code để train và evaluate models có tại: https://github.com/tensorflow/tensor2tensor
+
+-Tầm quan trọng lịch sử:
+  + Paper này đã mở ra kỷ nguyên mới cho NLP và AI
+  + Kiến trúc Transformer trở thành nền tảng cho BERT, GPT, T5 và vô số models khác
+  + Chứng minh rằng attention mechanism là đủ mạnh, không nhất thiết cần recurrence
+  + Đặt nền móng cho Large Language Models (LLMs) hiện đại
+
+References

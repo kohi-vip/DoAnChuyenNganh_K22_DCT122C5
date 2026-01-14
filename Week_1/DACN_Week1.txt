@@ -1,0 +1,16 @@
+Note buổi học tuần đầu môn Đồ án chuyên ngành:
+
+Mô hình transformer là gì?
+Là mô hình thống kê data để thực hiện xử lý dữ liệu dưới dạng mạng lưới, khác với cách thực hiện xử lý hồi quy đo đạc từng mẫu thông tin một như các cách truyền thống theo như chiều dài phát triển từ đầu những thập niên năm 1950 cho đến nay (2017) để có thể phát minh được một cách thống kê đột phá như hiện tại
+Chi tiết thành phần của Transformer?
+-Encoding
+-Positional Encoding Encoder: e.g. BERT
+-Attention(s) - mang s vì phụ thuộc vào cách thực hiện attention ở tùy thành phần Encoder hoặc Decoder, ảnh hưởng bởi cách dùng dẫn đến tên gọi khác nhau của attention: e.g. GPT
+--> Residual Connection (Add) && Normalization Layer (Norm) (Add & Norm used in FFN)
+-Feed - Forward Network (FFN)
+
+Trọng tâm của Transformer: Attention
+Attention là gì?
+-Gồm 2 nơi được sử dụng: Encoder & Decoder
+--> Encoder: Self-Attention
+--> Decoder: Masked Self-Attention && Encoder - Decoder Attention
