@@ -23,10 +23,13 @@ Như vậy các đầu việc cần thực hiện là tập trung vào 3 khía c
 - Ứng dụng AI/NLP hiệu quả, sáng tạo (mở ra nhiều metadata cho người dùng chỉnh sửa, hạn chế tư duy fix cứng)
 
 --> Xác định quy trình nghiệp vụ: Chương 1 tổng quan đề tài, chương 2 quy trình nghiệp vụ
---> Xác định công nghệ sử dụng cho đồ án: (FE, BE, CI/CD, monitoring, AI/NLP, OCR)
-FE:
-BE:
-CI/CD:
-monitoring:
-AI/NLP:
+--> Xác định công nghệ sử dụng cho đồ án: (FE, BE, AI/NLP, OCR)
+FE: ReAct
+BE: Nextjs
+AI/NLP: 
 OCR:
+
+Chốt lại nội dung họp buổi hôm nay mỗi người 1 việc chuyên biệt:
+Word - Khôi
+UI/UX - Nghĩa
+Tìm hiểu và lựa chọn công nghệ cho repo đồ án: Tuấn và Thạch
