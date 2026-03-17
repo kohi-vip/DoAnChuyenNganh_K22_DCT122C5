@@ -1,0 +1,32 @@
+Sprint 17_3_2026
+Bàn về các đầu việc (Thời gian nộp đồ án: 15_4_2026)
+Yêu cầu cơ bản (phần monolith):
+- Quản lý thu chi cá nhân: Nhập chỉnh sửa và xóa các khoản thu và chi tiêu.
+- Phân loại giao dịch theo các danh mục (ăn uống, di chuyển, giải trí, tiết kiệm,...).
+- Thống kê trực quan biểu đồ thu - chi theo thời gian, danh mục.
+- Tính toán số dư: Hiển thị tổng thu, tổng chi, số dư theo từng giai đoạn.
+- Hệ thống xác thực người dùng (Đăng ký, đăng nhập).
+
+Mở rộng nâng cao (Phần gợi ý định nghĩa mô hình)
+- Nhập liệu bằng ngôn ngữ tự nhiên, ví dụ: "Hôm nay chi 50k ăn sáng" và hệ thống tự động trích xuất và phân tích thông tin.
+- Truy vấn bằng ngôn ngữ tự nhiên, ví dụ: "Tôi đã chi bao nhiêu cho cà phê trong tháng 12 ?".
+--> Tích hợp chatbot hỗ trợ hỏi đáp thông tin tài chính.
+
+- Phân tích và dự đoán xu hướng chi tiêu cá nhân: Đưa ra đang có xu hướng chi tiền như thế nào, bao nhiêu phần trăm so với một mốc nào đó
+- Gợi ý kế hoạch tiết kiệm hoặc cắt giảm chi tiêu.
+- Phát hiện bất thường trong chi tiêu (anomaly detection).
+- Nhận diện thông tin từ hóa đơn qua hình ảnh (sử dụng OCR hoặc AI).
+
+Như vậy các đầu việc cần thực hiện là tập trung vào 3 khía cạnh chính (dựa theo tỉ lệ trọng số chấm điểm)
+- Hoàn thiện các chức năng bắt buộc.
+- Tính năng mở rộng và khả năng ứng dụng vào thực tế.
+- Ứng dụng AI/NLP hiệu quả, sáng tạo (mở ra nhiều metadata cho người dùng chỉnh sửa, hạn chế tư duy fix cứng)
+
+--> Xác định quy trình nghiệp vụ: Chương 1 tổng quan đề tài, chương 2 quy trình nghiệp vụ
+--> Xác định công nghệ sử dụng cho đồ án: (FE, BE, CI/CD, monitoring, AI/NLP, OCR)
+FE:
+BE:
+CI/CD:
+monitoring:
+AI/NLP:
+OCR:
