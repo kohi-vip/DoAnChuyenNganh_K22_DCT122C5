@@ -1,0 +1,12 @@
+# Bỏ qua môi trường ảo của Python
+backend/venv/
+__pycache__/
+*.pyc
+
+# Bỏ qua thư viện của Node.js
+node_modules/
+dist/
+
+# Bỏ qua file biến môi trường
+.env
+.DS_Store
