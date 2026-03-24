@@ -1,0 +1,8 @@
+Công nghệ chọn lựa
+Fe, Be đã có
+Database: Postgres
+AI là Groq api
+OCR là verify.com
+
+Mỗi ví một mục đích sử dụng khác nhau
+--> 1 ví nhiều danh mục chi tiêu theo người dùng lựa chọn.
