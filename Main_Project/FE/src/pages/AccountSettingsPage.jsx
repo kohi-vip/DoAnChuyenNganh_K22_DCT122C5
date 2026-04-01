@@ -2,7 +2,7 @@ import { Eye, EyeOff, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import NotificationDialog from "../components/common/NotificationDialog";
 import httpClient from "../api/httpClient";
-import { useAuth } from "../stores/AuthContext";
+import { useAuth } from "../stores/useAuth";
 import { isPasswordValid } from "../utils/authSession";
 import { buildFullName, mapUserToAccountForm } from "../utils/accountSettingsMapper";
 import { getLocalUsers, upsertLocalUser } from "../utils/localDataStore";

@@ -12,7 +12,7 @@ import {
 	User,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { useAuth } from "../../stores/AuthContext";
+import { useAuth } from "../../stores/useAuth";
 
 const navItems = [
 	{ id: "home", label: "Trang chủ", icon: Home, path: "/dashboard" },

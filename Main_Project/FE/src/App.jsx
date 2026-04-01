@@ -7,7 +7,7 @@ import ReportsPage from "./pages/ReportsPage";
 import SignUpPage from "./pages/SignUpPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import MainLayout from "./layouts/MainLayout";
-import { useAuth } from "./stores/AuthContext";
+import { useAuth } from "./stores/useAuth";
 
 function PrivateRoute({ children }) {
 	const { isAuthenticated } = useAuth();
