@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import httpClient from "../api/httpClient";
-import { getLocalUsers, upsertLocalUser } from "../utils/localDataStore";
+import { AuthContext } from "./authContextObject";
 import {
   clearAuthSession,
   getAuthSession,
@@ -9,8 +9,6 @@ import {
   setAuthSession,
 } from "../utils/authSession";
 
-const AuthContext = createContext(null);
-
 const extractTokens = (data) => ({
   accessToken: data?.access_token || data?.accessToken || data?.tokens?.access_token || "",
   refreshToken: data?.refresh_token || data?.refreshToken || data?.tokens?.refresh_token || "",
@@ -18,7 +16,11 @@ const extractTokens = (data) => ({
 });
 
 const extractUser = (data, fallbackEmail) => {
-  const apiUser = data?.user || data?.data?.user || data?.profile;
+  const apiUser =
+    data?.user ||
+    data?.data?.user ||
+    data?.profile ||
+    (data?.id && data?.email ? data : null);
 
   if (apiUser) {
     return {
@@ -35,45 +37,64 @@ const extractUser = (data, fallbackEmail) => {
   };
 };
 
-const loginWithSeedUser = ({ email, password }) => {
-  const normalizedEmail = email.trim().toLowerCase();
-  const matched = getLocalUsers().find(
-    (user) => user.email.toLowerCase() === normalizedEmail && user.password === password
-  );
-
-  if (!matched) {
-    return null;
-  }
-
-  return {
-    user: {
-      id: matched.id,
-      email: matched.email,
-      full_name: matched.full_name,
-    },
-    accessToken: `dev_access_${Date.now()}`,
-    refreshToken: `dev_refresh_${Date.now()}`,
-    expiresInSeconds: 3600,
-  };
+const fetchCurrentUser = async (fallbackEmail = "") => {
+  const response = await httpClient.get("/api/auth/me");
+  return extractUser(response.data, fallbackEmail);
 };
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(() => getAuthSession());
+  const hydratedProfileRef = useRef(false);
 
-  const syncSessionUser = (nextUser) => {
-    if (!session?.access_token || !session?.refresh_token) {
+  const persistSession = useCallback(({ user, accessToken, refreshToken, expiresInSeconds = 3600 }) => {
+    const nextSession = setAuthSession({ user, accessToken, refreshToken, expiresInSeconds });
+    setSession(nextSession);
+    return nextSession;
+  }, []);
+
+  const syncSessionUser = useCallback((sessionValue, nextUser) => {
+    if (!sessionValue?.access_token || !sessionValue?.refresh_token || !sessionValue?.expires_at) {
       return;
     }
 
-    const remainingSeconds = Math.max(1, Math.floor((session.expires_at - Date.now()) / 1000));
-    const nextSession = setAuthSession({
+    const remainingSeconds = Math.max(1, Math.floor((sessionValue.expires_at - Date.now()) / 1000));
+    persistSession({
       user: nextUser,
-      accessToken: session.access_token,
-      refreshToken: session.refresh_token,
+      accessToken: sessionValue.access_token,
+      refreshToken: sessionValue.refresh_token,
       expiresInSeconds: remainingSeconds,
     });
-    setSession(nextSession);
-  };
+  }, [persistSession]);
+
+  useEffect(() => {
+    if (!session?.access_token || hydratedProfileRef.current) {
+      return undefined;
+    }
+
+    hydratedProfileRef.current = true;
+
+    let isMounted = true;
+
+    const hydrateCurrentUser = async () => {
+      try {
+        const currentUser = await fetchCurrentUser(session?.user?.email || "");
+        if (isMounted) {
+          syncSessionUser(session, currentUser);
+        }
+      } catch {
+        if (isMounted) {
+          clearAuthSession();
+          setSession(null);
+        }
+      }
+    };
+
+    hydrateCurrentUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session, syncSessionUser]);
 
   useEffect(() => {
     if (!session?.expires_at) {
@@ -82,9 +103,11 @@ export function AuthProvider({ children }) {
 
     const delay = session.expires_at - Date.now();
     if (delay <= 0) {
-      clearAuthSession();
-      setSession(null);
-      return undefined;
+      const expireNowTimer = window.setTimeout(() => {
+        clearAuthSession();
+        setSession(null);
+      }, 0);
+      return () => window.clearTimeout(expireNowTimer);
     }
 
     const timer = window.setTimeout(() => {
@@ -104,47 +127,32 @@ export function AuthProvider({ children }) {
       throw new Error("Mật khẩu phải dài hơn 8 ký tự, gồm chữ hoa, chữ thường và số.");
     }
 
-    let authPayload = null;
-
-    try {
-      const response = await httpClient.post("/api/auth/login", {
-        email: email.trim().toLowerCase(),
-        password,
-      });
-
-      const tokenBundle = extractTokens(response.data);
-      if (!tokenBundle.accessToken || !tokenBundle.refreshToken) {
-        throw new Error("Đăng nhập thất bại: thiếu access_token hoặc refresh_token.");
-      }
-
-      authPayload = {
-        user: extractUser(response.data, email.trim().toLowerCase()),
-        accessToken: tokenBundle.accessToken,
-        refreshToken: tokenBundle.refreshToken,
-        expiresInSeconds: tokenBundle.expiresInSeconds || 3600,
-      };
-    } catch (error) {
-      const statusCode = error?.response?.status;
-      if (statusCode !== 404) {
-        throw error;
-      }
-
-      const seedFallback = loginWithSeedUser({ email, password });
-      if (!seedFallback) {
-        throw new Error("Không tìm thấy API đăng nhập và thông tin tài khoản seed cũng không khớp.");
-      }
-
-      authPayload = seedFallback;
-    }
-
-    const nextSession = setAuthSession({
-      user: authPayload.user,
-      accessToken: authPayload.accessToken,
-      refreshToken: authPayload.refreshToken,
-      expiresInSeconds: authPayload.expiresInSeconds,
+    const normalizedEmail = email.trim().toLowerCase();
+    const response = await httpClient.post("/api/auth/login", {
+      email: normalizedEmail,
+      password,
     });
 
-    setSession(nextSession);
+    const tokenBundle = extractTokens(response.data);
+    if (!tokenBundle.accessToken || !tokenBundle.refreshToken) {
+      throw new Error("Đăng nhập thất bại: thiếu access_token hoặc refresh_token.");
+    }
+
+    let nextSession = persistSession({
+      user: extractUser(response.data, normalizedEmail),
+      accessToken: tokenBundle.accessToken,
+      refreshToken: tokenBundle.refreshToken,
+      expiresInSeconds: tokenBundle.expiresInSeconds || 3600,
+    });
+
+    try {
+      const currentUser = await fetchCurrentUser(normalizedEmail);
+      syncSessionUser(nextSession, currentUser);
+      nextSession = getAuthSession() || nextSession;
+    } catch {
+      // Keep optimistic session based on login response if profile endpoint fails temporarily.
+    }
+
     return nextSession;
   };
 
@@ -166,44 +174,10 @@ export function AuthProvider({ children }) {
       full_name,
       email: email.trim().toLowerCase(),
       password,
-      default_currency: "VND",
     };
 
-    try {
-      const response = await httpClient.post("/api/auth/register", registerPayload);
-
-      const tokenBundle = extractTokens(response.data);
-
-      if (tokenBundle.accessToken && tokenBundle.refreshToken) {
-        const user = extractUser(response.data, registerPayload.email);
-        const nextSession = setAuthSession({
-          user,
-          accessToken: tokenBundle.accessToken,
-          refreshToken: tokenBundle.refreshToken,
-          expiresInSeconds: tokenBundle.expiresInSeconds || 3600,
-        });
-        setSession(nextSession);
-        return nextSession;
-      }
-
-      return login({ email: registerPayload.email, password });
-    } catch (error) {
-      if (error?.response?.status !== 404) {
-        throw error;
-      }
-
-      const localUser = {
-        id: `user_${Date.now()}`,
-        email: registerPayload.email,
-        password: registerPayload.password,
-        full_name,
-        default_currency: "VND",
-        created_at: new Date().toISOString(),
-      };
-
-      upsertLocalUser(localUser);
-      return login({ email: registerPayload.email, password });
-    }
+    await httpClient.post("/api/auth/register", registerPayload);
+    return login({ email: registerPayload.email, password });
   };
 
   const updateCurrentUser = (nextUserPatch) => {
@@ -213,36 +187,26 @@ export function AuthProvider({ children }) {
     }
 
     const nextUser = { ...currentUser, ...nextUserPatch };
-    syncSessionUser(nextUser);
+    syncSessionUser(session, nextUser);
   };
 
   const logout = () => {
+    hydratedProfileRef.current = false;
     clearAuthSession();
     setSession(null);
   };
 
-  const value = useMemo(
-    () => ({
-      user: session?.user || null,
-      accessToken: session?.access_token || null,
-      refreshToken: session?.refresh_token || null,
-      expiresAt: session?.expires_at || null,
-      isAuthenticated: Boolean(session?.access_token && session?.refresh_token),
-      login,
-      register,
-      logout,
-      updateCurrentUser,
-    }),
-    [session]
-  );
+  const value = {
+    user: session?.user || null,
+    accessToken: session?.access_token || null,
+    refreshToken: session?.refresh_token || null,
+    expiresAt: session?.expires_at || null,
+    isAuthenticated: Boolean(session?.access_token && session?.refresh_token),
+    login,
+    register,
+    logout,
+    updateCurrentUser,
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-  return context;
 }

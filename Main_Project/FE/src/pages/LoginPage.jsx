@@ -2,7 +2,7 @@ import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import AuthSplitLayout from "../components/auth/AuthSplitLayout";
-import { useAuth } from "../stores/AuthContext";
+import { useAuth } from "../stores/useAuth";
 import { isEmailValid, isPasswordValid } from "../utils/authSession";
 
 function LoginPage() {
