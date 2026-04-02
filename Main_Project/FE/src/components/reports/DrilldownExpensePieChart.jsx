@@ -166,7 +166,7 @@ function DrilldownExpensePieChart({ categories, transactions }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_220px]">
-        <div className="h-[320px] w-full">
+        <div className="h-[320px] w-full overflow-hidden">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie

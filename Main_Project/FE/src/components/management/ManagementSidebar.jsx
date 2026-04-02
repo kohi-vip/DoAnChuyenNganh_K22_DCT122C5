@@ -1,5 +1,5 @@
 import {
-	Bell,
+	// Bell,  // tạm ẩn - chưa dùng
 	Bot,
 	ChartColumnBig,
 	CreditCard,
@@ -9,7 +9,7 @@ import {
 	Plus,
 	Search,
 	Settings,
-	User,
+	// User,  // tạm ẩn - chưa dùng
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../stores/useAuth";
@@ -40,8 +40,9 @@ function ManagementSidebar({ onOpenCreateTransaction }) {
 		<aside className="sticky top-0 h-screen w-1/4 border-r border-slate-200 bg-white">
 			<div className="flex h-full flex-col p-5">
 				<div className="mb-5 flex items-center justify-between">
-					<h1 className="text-lg font-semibold text-slate-900">Tên app</h1>
-					<div className="flex items-center gap-2">
+					<h1 className="text-lg font-semibold text-slate-900">CaiSoCai</h1>
+					{/* Các nút User/Settings/Notification tạm thời ẩn, chưa sử dụng
+				<div className="flex items-center gap-2">
 						<button className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" type="button" aria-label="Hồ sơ cá nhân">
 							<User className="h-4 w-4" />
 						</button>
@@ -55,6 +56,7 @@ function ManagementSidebar({ onOpenCreateTransaction }) {
 							</span>
 						</button>
 					</div>
+				*/}
 				</div>
 
 				<label className="relative mb-5 block">

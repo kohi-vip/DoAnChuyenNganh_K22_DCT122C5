@@ -176,8 +176,9 @@ export function AuthProvider({ children }) {
       password,
     };
 
+    // Chỉ đăng ký, KHÔNG tự đăng nhập — người dùng cần quay lại trang đăng nhập
     await httpClient.post("/api/auth/register", registerPayload);
-    return login({ email: registerPayload.email, password });
+    return registerPayload.email;
   };
 
   const updateCurrentUser = (nextUserPatch) => {

@@ -1,4 +1,14 @@
 import { useState } from "react";
+import {
+	createCategory,
+	createWallet,
+	deleteCategory,
+	deleteWallet,
+	fetchCategories,
+	fetchWallets,
+	updateCategory,
+	updateWallet,
+} from "../api/financeApi";
 import NotificationDialog from "../components/common/NotificationDialog";
 import CategoryEditModal from "../components/management/CategoryEditModal";
 import CategorySection from "../components/management/CategorySection";
@@ -56,25 +66,38 @@ function ManagementPage() {
 		setWalletModalOpen(true);
 	};
 
-	const handleUpsertWallet = (wallet) => {
-		if (walletModalMode === "edit") {
-			setWallets((current) => current.map((item) => (item.id === wallet.id ? { ...item, ...wallet } : item)));
-			showSuccess("Đã cập nhật thông tin ví.");
-			return;
+	const handleUpsertWallet = async (wallet) => {
+		try {
+			if (walletModalMode === "edit") {
+				const updated = await updateWallet(wallet.id, wallet);
+				setWallets((current) => current.map((item) => (item.id === wallet.id ? { ...item, ...updated } : item)));
+				showSuccess("Đã cập nhật thông tin ví.");
+			} else {
+				const created = await createWallet(wallet);
+				setWallets((current) => [...current, created]);
+				showSuccess("Đã thêm ví mới.");
+			}
+		} catch (err) {
+			showError(err?.response?.data?.detail || "Không thể lưu ví. Vui lòng thử lại.");
 		}
-
-		setWallets((current) => [...current, wallet]);
-		showSuccess("Đã thêm ví mới.");
 	};
 
-	const handleDeleteWallet = (walletId) => {
+	const handleDeleteWallet = async (walletId) => {
 		const hasLinkedTransactions = transactions.some((item) => item.walletId === walletId);
 		if (hasLinkedTransactions) {
+			showError("Không thể xóa vì ví đang có giao dịch liên kết.");
 			return;
 		}
 
-		setWallets((current) => current.filter((item) => item.id !== walletId));
-		showSuccess("Đã xóa ví thành công.");
+		try {
+			await deleteWallet(walletId);
+			// Tải lại wallets từ API để đồng bộ số dư
+			const updated = await fetchWallets();
+			setWallets(updated);
+			showSuccess("Đã xóa ví thành công.");
+		} catch (err) {
+			showError(err?.response?.data?.detail || "Không thể xóa ví. Vui lòng thử lại.");
+		}
 	};
 
 	const handleOpenAddCategory = () => {
@@ -97,39 +120,24 @@ function ManagementPage() {
 		setCategoryModalOpen(true);
 	};
 
-	const addCategory = (category) => {
-		if (!category.parentId) {
-			setCategories((current) => [
-				...current,
-				{
-					id: category.id,
-					name: category.name,
-					type: category.type,
-					color: category.color,
-					badge: "Tùy chỉnh",
-					icon: "default",
-					children: [],
-				},
-			]);
-			setExpandedParents((current) => [...current, category.id]);
-			showSuccess("Đã thêm danh mục mới.");
-			return;
+	const addCategory = async (category) => {
+		try {
+			await createCategory(category);
+			// Tải lại toàn bộ categories từ API để đảm bảo cấu trúc parent/child đúng
+			const updated = await fetchCategories();
+			setCategories(updated);
+			if (!category.parentId) {
+				setExpandedParents((current) => [...current, category.id]);
+				showSuccess("Đã thêm danh mục mới.");
+			} else {
+				setExpandedParents((current) =>
+					current.includes(category.parentId) ? current : [...current, category.parentId]
+				);
+				showSuccess("Đã thêm danh mục con mới.");
+			}
+		} catch (err) {
+			showError(err?.response?.data?.detail || "Không thể thêm danh mục. Vui lòng thử lại.");
 		}
-
-		setCategories((current) =>
-			current.map((item) =>
-				item.id === category.parentId
-					? {
-							...item,
-							children: [...item.children, { id: category.id, name: category.name }],
-						}
-					: item
-			)
-		);
-		setExpandedParents((current) =>
-			current.includes(category.parentId) ? current : [...current, category.parentId]
-		);
-		showSuccess("Đã thêm danh mục con mới.");
 	};
 
 	const hasTransactionsByCategoryId = (categoryId) =>
@@ -158,7 +166,8 @@ function ManagementPage() {
 		return { disabled: false, reason: "" };
 	};
 
-	const updateCategory = (payload) => {
+	const updateCategoryLocal = (payload) => {
+		// Validation thuần local (không cần API) trước khi gọi API
 		let extracted = null;
 
 		const removedCurrent = categories.flatMap((parent) => {
@@ -189,115 +198,89 @@ function ManagementPage() {
 					children: [],
 					parentId: parent.id,
 				};
-
-				return [
-					{
-						...parent,
-						children: parent.children.filter((childItem) => childItem.id !== payload.id),
-					},
-				];
+				return [{ ...parent, children: parent.children.filter((c) => c.id !== payload.id) }];
 			}
 
 			return [parent];
 		});
 
-		if (!extracted) {
-			showError("Không tìm thấy danh mục để cập nhật.");
-			return;
-		}
+		if (!extracted) return { error: "Không tìm thấy danh mục để cập nhật." };
 
 		const nextType = payload.type;
 		const nextParentId = payload.parentId;
 
-		if (extracted.children.length > 0 && nextParentId) {
-			showError("Không thể chuyển danh mục cha có danh mục con thành danh mục cấp 2.");
+		if (extracted.children.length > 0 && nextParentId)
+			return { error: "Không thể chuyển danh mục cha có danh mục con thành danh mục cấp 2." };
+		if (hasTransactionsByCategoryId(payload.id) && extracted.type !== nextType)
+			return { error: "Không thể đổi loại danh mục đang có giao dịch liên kết." };
+		if (nextParentId) {
+			const targetParent = removedCurrent.find((item) => item.id === nextParentId);
+			if (!targetParent) return { error: "Danh mục cha không tồn tại." };
+			if (targetParent.type !== nextType) return { error: "Danh mục con phải cùng loại với danh mục cha." };
+		}
+
+		return { ok: true, removedCurrent, extracted, nextParentId };
+	};
+
+	const updateCategoryHandler = async (payload) => {
+		const check = updateCategoryLocal(payload);
+		if (check.error) {
+			showError(check.error);
 			return;
 		}
 
-		if (hasTransactionsByCategoryId(payload.id) && extracted.type !== nextType) {
-			showError("Không thể đổi loại danh mục đang có giao dịch liên kết.");
-			return;
-		}
-
-		if (!nextParentId) {
-			setCategories([
-				...removedCurrent,
-				{
-					id: payload.id,
-					name: payload.name,
-					type: nextType,
-					color: payload.color,
-					badge: extracted.badge || "Tùy chỉnh",
-					icon: extracted.icon || "default",
-					children: extracted.children,
-				},
-			]);
+		try {
+			await updateCategory(payload.id, {
+				name: payload.name,
+				color: payload.color,
+				icon: payload.icon,
+			});
+			// Tải lại từ API để cấu trúc parent/child chính xác
+			const updated = await fetchCategories();
+			setCategories(updated);
+			if (check.nextParentId) {
+				setExpandedParents((current) =>
+					!current.includes(check.nextParentId) ? [...current, check.nextParentId] : current
+				);
+			}
 			showSuccess("Đã cập nhật danh mục.");
-			return;
+		} catch (err) {
+			showError(err?.response?.data?.detail || "Không thể cập nhật danh mục. Vui lòng thử lại.");
 		}
-
-		const targetParent = removedCurrent.find((item) => item.id === nextParentId);
-		if (!targetParent) {
-			showError("Danh mục cha không tồn tại.");
-			return;
-		}
-
-		if (targetParent.type !== nextType) {
-			showError("Danh mục con phải cùng loại với danh mục cha.");
-			return;
-		}
-
-		setCategories(
-			removedCurrent.map((item) =>
-				item.id === nextParentId
-					? {
-						...item,
-						children: [...item.children, { id: payload.id, name: payload.name, color: payload.color }],
-					}
-					: item
-			)
-		);
-
-		setExpandedParents((current) =>
-			!current.includes(nextParentId) ? [...current, nextParentId] : current
-		);
-		showSuccess("Đã cập nhật danh mục.");
 	};
 
-	const handleUpsertCategory = (category) => {
+	const handleUpsertCategory = async (category) => {
 		if (categoryModalMode === "edit") {
-			updateCategory(category);
+			await updateCategoryHandler(category);
 			return;
 		}
 
-		addCategory(category);
+		await addCategory(category);
 	};
 
-	const handleDeleteCategory = (categoryId, parentId) => {
+	const handleDeleteCategory = async (categoryId, parentId) => {
 		if (hasTransactionsByCategoryId(categoryId)) {
+			showError("Không thể xóa vì danh mục đang có giao dịch liên kết.");
 			return;
 		}
 
 		if (!parentId) {
 			const target = categories.find((item) => item.id === categoryId);
 			if (target && target.children.length > 0) {
+				showError("Không thể xóa vì danh mục cha đang chứa danh mục con.");
 				return;
 			}
-
-			setCategories((current) => current.filter((item) => item.id !== categoryId));
-			setExpandedParents((current) => current.filter((item) => item !== categoryId));
-			showSuccess("Đã xóa danh mục.");
-			return;
 		}
 
-		setCategories((current) =>
-			current.map((item) =>
-				item.id === parentId
-					? { ...item, children: item.children.filter((child) => child.id !== categoryId) }
-					: item
-			)
-		);
-		showSuccess("Đã xóa danh mục con.");
+		try {
+			await deleteCategory(categoryId);
+			const updated = await fetchCategories();
+			setCategories(updated);
+			setExpandedParents((current) => current.filter((item) => item !== categoryId));
+			showSuccess(parentId ? "Đã xóa danh mục con." : "Đã xóa danh mục.");
+		} catch (err) {
+			showError(err?.response?.data?.detail || "Không thể xóa danh mục. Vui lòng thử lại.");
+		}
 	};
 
 	return (

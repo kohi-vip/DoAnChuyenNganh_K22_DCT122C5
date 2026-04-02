@@ -1,17 +1,21 @@
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import AuthSplitLayout from "../components/auth/AuthSplitLayout";
 import { useAuth } from "../stores/useAuth";
 import { isEmailValid, isPasswordValid } from "../utils/authSession";
 
 function LoginPage() {
 	const navigate = useNavigate();
+	const location = useLocation();
 	const { login, isAuthenticated } = useAuth();
-	const [email, setEmail] = useState("");
+	// Chỉ điền sẵn email khi được chuyển hướng từ trang đăng ký (có flag justRegistered)
+	const prefillEmail = location.state?.justRegistered ? (location.state?.email || "") : "";
+	const [email, setEmail] = useState(prefillEmail);
 	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
 	const [error, setError] = useState("");
+	const successMessage = location.state?.justRegistered ? "Đăng ký thành công! Vui lòng đăng nhập để tiếp tục." : "";
 	const [submitting, setSubmitting] = useState(false);
 
 	if (isAuthenticated) {
@@ -98,6 +102,7 @@ function LoginPage() {
 					<p className="mt-1 text-xs text-slate-500">Mật khẩu phải dài hơn 8 ký tự, gồm chữ hoa, chữ thường và số.</p>
 				</label>
 
+				{successMessage ? <p className="text-sm font-medium text-emerald-600">{successMessage}</p> : null}
 				{error ? <p className="text-sm font-medium text-rose-600">{error}</p> : null}
 
 				<button

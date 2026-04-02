@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import seedData from "../../utils/seedData";
+// import seedData from "../../utils/seedData"; // không dùng seed data nữa
 
 const toMonthInputValue = (date) => {
   const year = date.getFullYear();
@@ -71,7 +71,7 @@ const buildDailyExpenseData = (transactions, selectedMonth) => {
 };
 
 function DailyExpenseLineChart({ transactions }) {
-  const sourceTransactions = transactions && transactions.length > 0 ? transactions : seedData.transactions;
+  const sourceTransactions = transactions || [];
   const [selectedMonth, setSelectedMonth] = useState(toMonthInputValue(new Date()));
 
   const monthOptions = useMemo(() => {
@@ -122,7 +122,7 @@ function DailyExpenseLineChart({ transactions }) {
         </label>
       </div>
 
-      <div className="h-[280px] w-full">
+      <div className="h-[280px] w-full overflow-hidden">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 4 }}>
             <defs>
