@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="vi">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>n8n Chat Test - Ảnh Đơn</title>
+		<link
+			href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css"
+			rel="stylesheet"
+		/>
+
+		<style>
+			:root {
+				--chat--color--primary: #0f766e;
+				--chat--color--primary-shade-50: #0d685f;
+				--chat--color--primary--shade-100: #0a524b;
+				--chat--color--secondary: #0ea5e9;
+				--chat--color-secondary-shade-50: #0284c7;
+				--chat--window--width: 420px;
+				--chat--window--height: 600px;
+				--chat--toggle--size: 60px;
+				--chat--header--padding: 12px;
+				--chat--heading--font-size: 30px;
+				--chat--subtitle--line-height: 24px;
+			}
+
+			html,
+			body {
+				margin: 0;
+				width: 100%;
+				height: 100%;
+				font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+				background: radial-gradient(circle at top right, #e0f2fe, #f8fafc 55%);
+			}
+
+			#n8n-chat {
+				width: 100%;
+				height: 100%;
+			}
+
+			#n8n-chat .chat-layout .chat-header {
+				gap: 0px;
+			}
+
+			#n8n-chat .n8n-input-row {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+			}
+
+			#n8n-chat .n8n-input-row textarea,
+			#n8n-chat .n8n-input-row input[type="text"] {
+				margin: 0;
+			}
+
+			#n8n-chat .n8n-image-add-btn {
+				width: 30px;
+				height: 30px;
+				border: 0;
+				border-radius: 8px;
+				background: transparent;
+				color: #0f766e;
+				font-size: 24px;
+				line-height: 1;
+				cursor: pointer;
+				flex: 0 0 auto;
+				padding: 0;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+			}
+
+			#n8n-chat .n8n-image-add-btn:hover {
+				background: #f0fdfa;
+			}
+
+			#n8n-chat .n8n-image-chip-row {
+				display: none;
+				align-items: center;
+				margin-bottom: 6px;
+			}
+
+			#n8n-chat .n8n-image-chip-row[data-visible="true"] {
+				display: flex;
+			}
+
+			#n8n-chat .n8n-image-chip {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				padding: 4px 8px;
+				border-radius: 999px;
+				background: #ecfeff;
+				border: 1px solid #a5f3fc;
+				color: #155e75;
+				font-size: 12px;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				max-width: 170px;
+				flex: 0 1 auto;
+			}
+
+			#n8n-chat .n8n-image-chip-remove {
+				border: 0;
+				background: transparent;
+				color: #155e75;
+				font-size: 14px;
+				cursor: pointer;
+				padding: 0;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div id="n8n-chat"></div>
+
+		<script type="module">
+			import { createChat } from "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js";
+
+			const WEBHOOK_URL =
+				"https://brice-opportune-unacceptably.ngrok-free.dev/webhook/3d84c956-4adf-403d-8895-bfcf35e558e1/chat";
+			const MAX_IMAGE_SIZE_BYTES = 3 * 1024 * 1024;
+			const IMAGE_ONLY_FALLBACK_MESSAGE = "Phan tich noi dung hoa don trong anh nay.";
+			const imageState = {
+				file: null,
+				base64Data: "",
+				autoFilled: false,
+			};
+
+			const uploaderRefs = {
+				hiddenInput: null,
+				messageInput: null,
+			};
+
+			const chipRefs = {
+				container: null,
+				label: null,
+			};
+
+			function formatMb(bytes) {
+				return `${(bytes / (1024 * 1024)).toFixed(2)}MB`;
+			}
+
+			function resetImageState() {
+				imageState.file = null;
+				imageState.base64Data = "";
+
+				if (
+					imageState.autoFilled &&
+					uploaderRefs.messageInput &&
+					uploaderRefs.messageInput.value.trim() === IMAGE_ONLY_FALLBACK_MESSAGE
+				) {
+					uploaderRefs.messageInput.value = "";
+					uploaderRefs.messageInput.dispatchEvent(new Event("input", { bubbles: true }));
+				}
+
+				imageState.autoFilled = false;
+
+				if (uploaderRefs.hiddenInput) {
+					uploaderRefs.hiddenInput.value = "";
+				}
+
+				if (chipRefs.container && chipRefs.label) {
+					chipRefs.container.dataset.visible = "false";
+					chipRefs.container.parentElement.dataset.visible = "false";
+					chipRefs.label.textContent = "";
+				}
+			}
+
+			function readFileAsDataUrl(file) {
+				return new Promise((resolve, reject) => {
+					const reader = new FileReader();
+					reader.onload = () => resolve(String(reader.result));
+					reader.onerror = () => reject(new Error("Khong the doc file anh."));
+					reader.readAsDataURL(file);
+				});
+			}
+
+			function patchOutgoingRequest() {
+				const originalFetch = window.fetch.bind(window);
+
+				async function extractBodyText(input, init) {
+					if (typeof init?.body === "string") {
+						return init.body;
+					}
+
+					if (input instanceof Request) {
+						try {
+							const cloned = input.clone();
+							return await cloned.text();
+						} catch {
+							return "";
+						}
+					}
+
+					return "";
+				}
+
+				window.fetch = async (input, init = {}) => {
+					const requestUrl = typeof input === "string" ? input : input?.url || "";
+					const method = (init?.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
+					let patchedInput = input;
+					let patchedInit = init;
+
+					if (
+						requestUrl.startsWith(WEBHOOK_URL) &&
+						method === "POST" &&
+						imageState.file &&
+						imageState.base64Data
+					) {
+						try {
+							const rawBody = await extractBodyText(input, init);
+							if (!rawBody) {
+								return originalFetch(input, init);
+							}
+
+							const body = JSON.parse(rawBody);
+
+							body.image = {
+								name: imageState.file.name,
+								mimeType: imageState.file.type || "application/octet-stream",
+								size: imageState.file.size,
+								data: imageState.base64Data,
+							};
+
+							if (input instanceof Request) {
+								patchedInput = new Request(input, {
+									body: JSON.stringify(body),
+								});
+								patchedInit = undefined;
+							} else {
+								patchedInit = {
+									...init,
+									body: JSON.stringify(body),
+								};
+							}
+						} catch (error) {
+							console.error("Khong parse duoc request body:", error);
+						}
+					}
+
+					const response = await originalFetch(patchedInput, patchedInit);
+					if (requestUrl.startsWith(WEBHOOK_URL) && method === "POST" && response.ok) {
+						resetImageState();
+					}
+
+					return response;
+				};
+			}
+
+			function mountSingleImageUploader() {
+				const chatRoot = document.querySelector("#n8n-chat");
+				if (!chatRoot) {
+					return;
+				}
+
+				if (chatRoot.querySelector(".n8n-image-add-btn")) {
+					return;
+				}
+
+				const messageInput = chatRoot.querySelector("textarea, input[type='text']");
+				if (!messageInput || !messageInput.parentElement) {
+					return;
+				}
+
+				if (!messageInput.id) {
+					messageInput.id = "chat-input";
+				}
+
+				if (!messageInput.name) {
+					messageInput.name = "chatInput";
+				}
+
+				const inputContainer = messageInput.parentElement;
+				const footerContainer = inputContainer.parentElement;
+				if (!footerContainer) {
+					return;
+				}
+
+				uploaderRefs.messageInput = messageInput;
+
+				inputContainer.classList.add("n8n-input-row");
+				const uploadButton = document.createElement("button");
+				uploadButton.type = "button";
+				uploadButton.className = "n8n-image-add-btn";
+				uploadButton.setAttribute("aria-label", "Them mot anh OCR");
+				uploadButton.title = "Them mot anh OCR";
+				uploadButton.textContent = "+";
+
+				const hiddenFileInput = document.createElement("input");
+				hiddenFileInput.type = "file";
+				hiddenFileInput.accept = "image/png,image/jpeg,image/jpg";
+				hiddenFileInput.id = "ocr-image-upload";
+				hiddenFileInput.name = "ocrImageUpload";
+				hiddenFileInput.style.display = "none";
+				uploaderRefs.hiddenInput = hiddenFileInput;
+
+				const imageChip = document.createElement("div");
+				imageChip.className = "n8n-image-chip";
+				imageChip.dataset.visible = "false";
+
+				const imageChipRow = document.createElement("div");
+				imageChipRow.className = "n8n-image-chip-row";
+				imageChipRow.dataset.visible = "false";
+
+				const imageChipLabel = document.createElement("span");
+				imageChip.appendChild(imageChipLabel);
+
+				const imageChipRemove = document.createElement("button");
+				imageChipRemove.type = "button";
+				imageChipRemove.className = "n8n-image-chip-remove";
+				imageChipRemove.setAttribute("aria-label", "Xoa anh da chon");
+				imageChipRemove.textContent = "x";
+				imageChip.appendChild(imageChipRemove);
+
+				chipRefs.container = imageChip;
+				chipRefs.label = imageChipLabel;
+
+				uploadButton.addEventListener("click", () => {
+					hiddenFileInput.click();
+				});
+
+				hiddenFileInput.addEventListener("change", async () => {
+					const selectedFile = hiddenFileInput.files?.[0];
+					if (!selectedFile) {
+						return;
+					}
+
+					if (selectedFile.size > MAX_IMAGE_SIZE_BYTES) {
+						window.alert(`Anh qua lon. Vui long chon anh nho hon ${formatMb(MAX_IMAGE_SIZE_BYTES)}.`);
+						hiddenFileInput.value = "";
+						return;
+					}
+
+					if (!selectedFile.type.startsWith("image/")) {
+						window.alert("Chi ho tro dinh dang anh (png, jpg, jpeg).");
+						hiddenFileInput.value = "";
+						return;
+					}
+
+					try {
+						const dataUrl = await readFileAsDataUrl(selectedFile);
+						const base64Data = dataUrl.split(",")[1] || "";
+
+						imageState.file = selectedFile;
+						imageState.base64Data = base64Data;
+						imageChip.dataset.visible = "true";
+						imageChipRow.dataset.visible = "true";
+						imageChipLabel.textContent = `${selectedFile.name} (${formatMb(selectedFile.size)})`;
+
+						if (messageInput.value.trim() === "") {
+							messageInput.value = IMAGE_ONLY_FALLBACK_MESSAGE;
+							messageInput.dispatchEvent(new Event("input", { bubbles: true }));
+							imageState.autoFilled = true;
+						} else {
+							imageState.autoFilled = false;
+						}
+					} catch (error) {
+						console.error(error);
+						window.alert("Khong the doc anh. Vui long thu lai.");
+					}
+				});
+
+				messageInput.addEventListener("input", () => {
+					if (messageInput.value.trim() !== IMAGE_ONLY_FALLBACK_MESSAGE) {
+						imageState.autoFilled = false;
+					}
+				});
+
+				imageChipRemove.addEventListener("click", () => {
+					hiddenFileInput.value = "";
+					resetImageState();
+				});
+
+				inputContainer.insertBefore(uploadButton, messageInput);
+				imageChipRow.appendChild(imageChip);
+				footerContainer.insertBefore(imageChipRow, inputContainer);
+				inputContainer.appendChild(hiddenFileInput);
+			}
+
+			patchOutgoingRequest();
+
+			createChat({
+				webhookUrl: WEBHOOK_URL,
+				target: "#n8n-chat",
+				mode: "window",
+				showWelcomeScreen: true,
+				enableStreaming: true,
+				initialMessages: [
+					"Xin chào, mình có thể hỗ trợ bạn gì?",
+					"Hãy nhập câu hỏi để bắt đầu.",
+				],
+				i18n: {
+					en: {
+						title: "Trợ lý AI",
+						subtitle: "Chuyên viên tư vấn chi tiêu cá nhân",
+						footer: "Powered by n8n",
+						getStarted: "Bắt đầu",
+						inputPlaceholder: "Nhập câu hỏi...",
+					},
+				},
+			});
+
+			const observer = new MutationObserver(() => {
+				mountSingleImageUploader();
+			});
+
+			observer.observe(document.body, {
+				childList: true,
+				subtree: true,
+			});
+
+			mountSingleImageUploader();
+		</script>
+	</body>
+</html>

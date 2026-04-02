@@ -1,0 +1,311 @@
+{
+  "name": "n8n to interface",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "mode": "webhook",
+        "options": {
+          "responseMode": "streaming"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -496,
+        48
+      ],
+      "id": "688925d3-03f5-4106-9c37-bfcdd80262ed",
+      "name": "When chat message received",
+      "webhookId": "YOUR_CHAT_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 3
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        672,
+        304
+      ],
+      "id": "523bf8f2-54a8-4f11-811d-a15df643f593",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "ROLE: Chuyên viên tư vấn tài chính Jelly\nBạn là chuyên viên tư vấn tài chính cá nhân. Bắt buộc sử dụng 100% tiếng Việt trong mọi câu trả lời và mô tả.\n\nMỤC TIÊU\n\nHỗ trợ người dùng quản lý chi tiêu, phân tích hóa đơn, theo dõi ngân sách, và đưa khuyến nghị tài chính cá nhân.\nTrả lời ngắn gọn, rõ ràng, thực tế, có thể áp dụng ngay.\nKhông bịa dữ liệu. Nếu thiếu thông tin, phải nói rõ và hỏi thêm.\nQUY TẮC DÙNG TOOL OCR (HÓA ĐƠN)\n\nNếu người dùng có gửi ảnh hoặc yêu cầu đọc hóa đơn/chứng từ, bắt buộc gọi tool Call OCR trước khi trả lời.\nNếu không có ảnh hóa đơn, không gọi tool OCR.\nSau khi tool trả về:\nNếu ocrStatus = ok và có ocrText: dùng ocrText làm nguồn chính để phân tích.\nNếu ocrStatus = error hoặc ocrText rỗng: thông báo không đọc rõ hóa đơn, đề nghị gửi lại ảnh rõ hơn, rồi vẫn tư vấn phần có thể từ câu hỏi người dùng.\nKhông được suy đoán nội dung hóa đơn khi chưa có kết quả OCR hợp lệ.\nPHONG CÁCH TƯ VẤN\n\nLuôn trả lời bằng tiếng Việt tự nhiên, chuyên nghiệp, dễ hiểu.\nKhi phân tích chi tiêu, ưu tiên nêu:\nTổng chi tiêu\nNhóm chi tiêu chính\nKhoản bất thường\nGợi ý tiết kiệm cụ thể\nNếu có số liệu từ hóa đơn, trình bày theo từng ý rõ ràng.\nAN TOÀN VÀ ĐỘ TIN CẬY\n\nKhông khẳng định chắc chắn khi dữ liệu OCR chưa rõ.\nNếu dữ liệu thiếu hoặc mờ, nêu mức độ chắc chắn và phần cần xác nhận.\nKhông đưa lời khuyên tài chính rủi ro cao khi chưa đủ dữ liệu.\n\n###### LƯU Ý ######################\nnếu người dùng nhắn jelly và kèm theo câu hỏi, hãy trả lời toàn bộ, không quan tâm đó là câu hỏi gì",
+          "enableStreaming": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        576,
+        64
+      ],
+      "id": "4012a297-6182-4644-bd0b-7435abc45964",
+      "name": "Information Agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        528,
+        304
+      ],
+      "id": "83c6726a-67e5-4c15-a826-18f6ea350922",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "YOUR_GROQ_CREDENTIAL_ID",
+          "name": "YOUR_GROQ_CREDENTIAL_NAME"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d45231ef-2b44-45a2-8691-c9097da23dd6",
+              "leftValue": "={{ $json.hasImage }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -112,
+        48
+      ],
+      "id": "e8ee9e76-04c0-4bc1-8af1-1fecf0398889",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $json;\n\n// Luon dam bao chatInput la chuoi\nlet chatInput = String(src.chatInput ?? \"\").trim();\n\n// Thu parse neu chatInput la JSON string\nlet parsed = null;\ntry {\n  if (chatInput.startsWith(\"{\") && chatInput.endsWith(\"}\")) {\n    parsed = JSON.parse(chatInput);\n  }\n} catch (_) {\n  parsed = null;\n}\n\n// Lay image tu root, neu khong co thi lay tu parsed\nconst imageObj = src.image ?? parsed?.image ?? null;\nconst rawData = String(imageObj?.data ?? \"\").trim();\nconst base64 = rawData.replace(/^data:[^;]+;base64,/, \"\");\n\n// Neu parsed co question rieng thi uu tien\nif (parsed?.question) {\n  chatInput = String(parsed.question).trim();\n}\n\nconst hasImage = base64.length > 0;\n\nreturn [\n  {\n    json: {\n      action: src.action ?? \"\",\n      sessionId: src.sessionId ?? src.sessionid ?? \"\",\n      chatInput,\n      hasImage,\n      image: hasImage\n        ? {\n            name: imageObj?.name ?? \"upload.jpg\",\n            mimeType: imageObj?.mimeType ?? \"image/jpeg\",\n            data: base64,\n          }\n        : null,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        48
+      ],
+      "id": "eb828e7f-1d6c-4221-8384-0e554af7a013",
+      "name": "text and image"
+    },
+    {
+      "parameters": {
+        "description": "Dùng tool này để OCR ảnh hóa đơn/chứng từ. Chỉ gọi khi input có image.data. Trả về ocrText và ocrStatus.",
+        "workflowId": {
+          "__rl": true,
+          "value": "YOUR_OCR_WORKFLOW_ID",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/YOUR_OCR_WORKFLOW_ID",
+          "cachedResultName": "YOUR_OCR_WORKFLOW_NAME"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1168,
+        448
+      ],
+      "id": "24cf7039-ad0b-437c-9a07-cb2b685d696e",
+      "name": "Call 'OCR'"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.veryfi.com/api/v8/partner/documents/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CLIENT-ID",
+              "value": "YOUR_VERYFI_CLIENT_ID"
+            },
+            {
+              "name": "AUTHORIZATION",
+              "value": "apikey YOUR_USERNAME:YOUR_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"file_name\": \"={{ $json.image.name || 'upload.jpg' }}\",\n  \"file_data\": \"={{ $json.image.data }}\",\n  \"categories\": [\"other\"]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        96,
+        -160
+      ],
+      "id": "733ca4a7-fb25-437b-bf86-c1947565644b",
+      "name": "OCR tool"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('text and image').first().json;\nconst vf = $json || {};\n\n// 1) Lay text OCR tu cac truong pho bien\nconst baseText =\n  (typeof vf.ocr_text === 'string' && vf.ocr_text.trim()) ||\n  (typeof vf.raw_text === 'string' && vf.raw_text.trim()) ||\n  (typeof vf.text === 'string' && vf.text.trim()) ||\n  '';\n\n// 2) Gom line items neu co\nlet itemsText = '';\nif (Array.isArray(vf.line_items) && vf.line_items.length) {\n  itemsText = vf.line_items\n    .map((it, idx) => {\n      const desc = it.description || it.text || 'Muc khong ro';\n      const qty = it.quantity ?? '';\n      const amount = it.total ?? it.price ?? '';\n      return `${idx + 1}. ${desc} | SL: ${qty} | Tien: ${amount}`;\n    })\n    .join('\\n');\n}\n\n// 3) Tao ocrText tong hop\nconst ocrText = [baseText, itemsText].filter(Boolean).join('\\n').trim();\nconst ocrStatus = ocrText ? 'ok' : 'empty';\n\n// 4) Lay metadata hoa don neu co\nconst vendor =\n  (vf.vendor && (vf.vendor.name || vf.vendor)) ||\n  vf.vendor_name ||\n  '';\nconst date = vf.date || vf.invoice_date || '';\nconst total = vf.total ?? vf.grand_total ?? '';\n\n// 5) Dong goi lai chatInput cho Agent (bat buoc la string)\nconst agentInput = [\n  `Cau hoi nguoi dung: ${src.chatInput || ''}`,\n  `Da gui anh: Co`,\n  `OCR status: ${ocrStatus}`,\n  `Vendor: ${vendor}`,\n  `Date: ${date}`,\n  `Total: ${total}`,\n  '',\n  'Noi dung OCR:',\n  ocrText || 'Khong trich xuat duoc noi dung ro rang.'\n].join('\\n');\n\nreturn [\n  {\n    json: {\n      action: src.action || '',\n      sessionId: src.sessionId || '',\n      hasImage: true,\n      ocrStatus,\n      ocrText,\n      vendor,\n      date,\n      total,\n      chatInput: agentInput\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        -160
+      ],
+      "id": "1c80a9f7-92af-4ad0-a228-07b2e9526f05",
+      "name": "parse OCR to text"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "text and image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Information Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Information Agent": {
+      "main": [
+        []
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Information Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "text and image": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "OCR tool",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Information Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'OCR'": {
+      "ai_tool": [
+        []
+      ]
+    },
+    "OCR tool": {
+      "main": [
+        [
+          {
+            "node": "parse OCR to text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse OCR to text": {
+      "main": [
+        [
+          {
+            "node": "Information Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "13f3de23-7427-4e3d-8a12-b2b58e46fd5f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_N8N_INSTANCE_ID"
+  },
+  "id": "LpjRRKlzZxn5exQk",
+  "tags": []
+}
