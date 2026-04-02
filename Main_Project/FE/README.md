@@ -1,16 +1,66 @@
-# React + Vite
+# Personal Finance Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend quản lý tài chính cá nhân được xây dựng bằng React + Vite + Tailwind CSS.
 
-Currently, two official plugins are available:
+## Yêu cầu môi trường
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js 18+ (khuyến nghị Node.js 20+)
+- npm 9+
 
-## React Compiler
+## Cài đặt và chạy local
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Cài dependencies:
 
-## Expanding the ESLint configuration
+```bash
+npm install
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+2. Chạy môi trường dev:
+
+```bash
+npm run dev
+```
+
+3. Mở trình duyệt theo URL Vite in ra trong terminal (thường là `http://localhost:5173`).
+
+## Tài khoản test local
+
+Khi backend chưa có endpoint auth (trả 404), ứng dụng sẽ dùng local mode.
+
+- Email: `demo.finance@example.com`
+- Mật khẩu mặc định: `12345678Nguyen`
+
+Lưu ý: nếu bạn đã đổi mật khẩu trong trang Cài đặt tài khoản, lần đăng nhập tiếp theo phải dùng mật khẩu mới.
+
+## Dữ liệu test và cơ chế lưu
+
+- Dữ liệu khởi tạo lấy từ `src/utils/seedData.js`.
+- Sau lần chạy đầu, app sẽ lưu dữ liệu vào `localStorage` để không bị mất khi reload:
+	- users
+	- wallets
+	- categories
+	- transactions
+
+Vì vậy khi test frontend:
+
+- Thêm/sửa/xóa giao dịch sẽ được giữ lại sau F5.
+- Đổi mật khẩu ở local mode sẽ đăng nhập lại được bằng mật khẩu mới.
+
+## Reset dữ liệu về seed ban đầu
+
+Nếu cần reset dữ liệu test, mở DevTools và xóa các key localStorage sau:
+
+- `pfm_local_data_v1`
+- `pfm_auth_session`
+- `pfm_auth_user`
+- `access_token`
+- `refresh_token`
+
+Sau đó reload lại trang.
+
+## Các lệnh hữu ích
+
+- Chạy dev: `npm run dev`
+- Build production: `npm run build`
+- Preview bản build: `npm run preview`
+- Lint: `npm run lint`
