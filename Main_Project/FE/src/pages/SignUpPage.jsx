@@ -41,8 +41,9 @@ function SignUpPage() {
 
 		try {
 			setSubmitting(true);
-			await register({ lastName, firstName, email, password });
-			navigate("/dashboard", { replace: true });
+			const registeredEmail = await register({ lastName, firstName, email, password });
+			// Sau khi đăng ký xong → chuyển sang trang đăng nhập, điền sẵn email vừa đăng ký
+			navigate("/login", { replace: true, state: { justRegistered: true, email: registeredEmail || email } });
 		} catch (apiError) {
 			setError(apiError?.response?.data?.detail || apiError?.message || "Đăng ký thất bại.");
 		} finally {

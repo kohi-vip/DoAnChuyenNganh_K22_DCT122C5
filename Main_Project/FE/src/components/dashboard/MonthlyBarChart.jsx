@@ -77,7 +77,7 @@ function MonthlyBarChart({ transactions }) {
   return (
     <section className="rounded-xl bg-white p-4 shadow-sm">
       <h3 className="mb-3 text-sm font-semibold text-slate-900 md:text-base">Thu chi hàng tháng</h3>
-      <div className="h-[280px] w-full">
+      <div className="h-[280px] w-full overflow-hidden">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 6, right: 8, left: 8, bottom: 6 }} barGap={12} barCategoryGap="36%">
             <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />

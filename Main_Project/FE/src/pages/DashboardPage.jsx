@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { deleteTransaction, fetchWallets, updateTransaction } from "../api/financeApi";
 import ExpensePolarChart from "../components/dashboard/ExpensePolarChart";
 import MonthlyBarChart from "../components/dashboard/MonthlyBarChart";
 import OverviewCards from "../components/dashboard/OverviewCards";
@@ -7,19 +8,11 @@ import NotificationDialog from "../components/common/NotificationDialog";
 import DeleteTransactionDialog from "../components/transactions/DeleteTransactionDialog";
 import TransactionEditModal from "../components/transactions/TransactionEditModal";
 import { useAppData } from "../stores/AppDataContext";
-import seedData from "../utils/seedData";
+// import seedData from "../utils/seedData"; // không dùng seed data nữa
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const transactionImpact = (transaction) => {
-  if (transaction.type === "income") {
-    return transaction.amount;
-  }
-  if (transaction.type === "expense") {
-    return -transaction.amount;
-  }
-  return 0;
-};
+// const transactionImpact = ... // không cần nữa, số dư ví được tải lại từ API sau mỗi mutation
 
 function DashboardPage() {
   const { wallets, setWallets, categories, transactions, setTransactions } = useAppData();
@@ -188,7 +181,7 @@ function DashboardPage() {
   }, [categoryOptions]);
 
   const recentRows = useMemo(() => {
-    const sourceTransactions = transactions.length > 0 ? transactions : seedData.transactions;
+    const sourceTransactions = transactions;
 
     return [...sourceTransactions]
       .filter((item) => item.type === "income" || item.type === "expense")
@@ -242,28 +235,19 @@ function DashboardPage() {
     const impactedWallets = [oldTransaction.walletId, updatedTransaction.walletId];
 
     await runWithWalletLocks(impactedWallets, async () => {
-      setWallets((current) => {
-        const oldImpact = transactionImpact(oldTransaction);
-        const newImpact = transactionImpact(updatedTransaction);
-
-        return current.map((wallet) => {
-          let nextBalance = wallet.balance;
-
-          if (wallet.id === oldTransaction.walletId) {
-            nextBalance -= oldImpact;
-          }
-
-          if (wallet.id === updatedTransaction.walletId) {
-            nextBalance += newImpact;
-          }
-
-          return { ...wallet, balance: nextBalance };
-        });
-      });
-
-      setTransactions((current) =>
-        current.map((item) => (item.id === updatedTransaction.id ? updatedTransaction : item))
-      );
+      try {
+        // Gọi API cập nhật giao dịch
+        const saved = await updateTransaction(updatedTransaction.id, updatedTransaction);
+        setTransactions((current) =>
+          current.map((item) => (item.id === saved.id ? saved : item))
+        );
+        // Tải lại số dư ví từ API (BE tự điều chỉnh balance)
+        const updatedWallets = await fetchWallets();
+        setWallets(updatedWallets);
+      } catch (err) {
+        setFeedback({ type: "error", message: err?.response?.data?.detail || "Không thể cập nhật giao dịch." });
+        return;
+      }
     });
 
     setEditingTransaction(null);
@@ -276,20 +260,15 @@ function DashboardPage() {
     }
 
     await runWithWalletLocks([deletingTransaction.walletId], async () => {
-      setWallets((current) =>
-        current.map((wallet) => {
-          if (wallet.id !== deletingTransaction.walletId) {
-            return wallet;
-          }
-
-          return {
-            ...wallet,
-            balance: wallet.balance - transactionImpact(deletingTransaction),
-          };
-        })
-      );
-
-      setTransactions((current) => current.filter((item) => item.id !== deletingTransaction.id));
+      try {
+        await deleteTransaction(deletingTransaction.id);
+        setTransactions((current) => current.filter((item) => item.id !== deletingTransaction.id));
+        // Tải lại số dư ví từ API
+        const updatedWallets = await fetchWallets();
+        setWallets(updatedWallets);
+      } catch (err) {
+        setFeedback({ type: "error", message: err?.response?.data?.detail || "Không thể xóa giao dịch." });
+      }
     });
 
     setSelectedIds((current) => current.filter((id) => id !== deletingTransaction.id));

@@ -1,14 +1,12 @@
-import seedData from "./seedData";
+// import seedData from "./seedData"; // không dùng seed data làm giá trị mặc định nữa
 
 const LOCAL_DATA_KEY = "pfm_local_data_v1";
 
-const clone = (value) => JSON.parse(JSON.stringify(value));
-
 const createDefaultData = () => ({
-  users: clone(seedData.users || []),
-  wallets: clone(seedData.wallets || []),
-  categories: clone(seedData.categories || []),
-  transactions: clone(seedData.transactions || []),
+  users: [],
+  wallets: [],
+  categories: [],
+  transactions: [],
 });
 
 const readLocalData = () => {

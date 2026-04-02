@@ -12,34 +12,31 @@ function AccountSettingsPage() {
 
   const currentSeedUser = useMemo(() => {
     const allUsers = getLocalUsers();
-    if (!allUsers.length) {
-      return null;
-    }
-
-    if (!user?.email) {
-      return allUsers[0];
-    }
-
+    if (!allUsers.length) return null;
+    if (!user?.email) return allUsers[0];
     return allUsers.find((item) => item.email?.toLowerCase() === user.email.toLowerCase()) || allUsers[0];
   }, [user]);
 
   const initialForm = useMemo(
-    () =>
-      mapUserToAccountForm(currentSeedUser || {}, {
-        id: user?.id,
-        email: user?.email,
-        full_name: user?.full_name,
-      }),
+    () => mapUserToAccountForm(currentSeedUser || {}, { id: user?.id, email: user?.email, full_name: user?.full_name }),
     [currentSeedUser, user]
   );
 
   const [lastName, setLastName] = useState(initialForm.lastName);
   const [firstName, setFirstName] = useState(initialForm.firstName);
   const [labelName, setLabelName] = useState(initialForm.labelName);
-  const [oldPassword, setOldPassword] = useState("");
+
+  // Luồng đổi mật khẩu mới: toggle + nhập 2 lần
+  const [wantChangePassword, setWantChangePassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
-  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Luồng đổi mật khẩu cũ (comment lại, không dùng nữa)
+  // const [oldPassword, setOldPassword] = useState("");
+  // const [showOldPassword, setShowOldPassword] = useState(false);
+
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
@@ -47,20 +44,21 @@ function AccountSettingsPage() {
   const validate = () => {
     const nextErrors = {};
 
-    if (!lastName.trim()) {
-      nextErrors.lastName = "Họ là bắt buộc.";
-    }
+    if (!lastName.trim()) nextErrors.lastName = "Họ là bắt buộc.";
+    if (!firstName.trim()) nextErrors.firstName = "Tên là bắt buộc.";
 
-    if (!firstName.trim()) {
-      nextErrors.firstName = "Tên là bắt buộc.";
-    }
+    if (wantChangePassword) {
+      if (!newPassword) {
+        nextErrors.newPassword = "Vui lòng nhập mật khẩu mới.";
+      } else if (!isPasswordValid(newPassword)) {
+        nextErrors.newPassword = "Mật khẩu mới phải dài hơn 8 ký tự, gồm chữ hoa, chữ thường và số.";
+      }
 
-    if (newPassword && !oldPassword.trim()) {
-      nextErrors.oldPassword = "Vui lòng nhập mật khẩu cũ để cập nhật mật khẩu mới.";
-    }
-
-    if (newPassword && !isPasswordValid(newPassword)) {
-      nextErrors.newPassword = "Mật khẩu mới phải dài hơn 8 ký tự, gồm chữ hoa, chữ thường và số.";
+      if (!confirmPassword) {
+        nextErrors.confirmPassword = "Vui lòng xác nhận mật khẩu mới.";
+      } else if (newPassword && confirmPassword !== newPassword) {
+        nextErrors.confirmPassword = "Mật khẩu xác nhận không khớp.";
+      }
     }
 
     setErrors(nextErrors);
@@ -68,19 +66,11 @@ function AccountSettingsPage() {
   };
 
   const handleSave = async () => {
-    if (!validate()) {
-      return;
-    }
+    if (!validate()) return;
 
     const payload = {
       full_name: buildFullName(lastName, firstName),
-      email: labelName.trim(),
-      ...(newPassword
-        ? {
-            old_password: oldPassword,
-            new_password: newPassword,
-          }
-        : {}),
+      ...(wantChangePassword && newPassword ? { new_password: newPassword } : {}),
     };
 
     const targetUserId = initialForm.id || "me";
@@ -90,32 +80,20 @@ function AccountSettingsPage() {
 
     try {
       setSaving(true);
-      await httpClient.put(`/api/users/${targetUserId}`, payload);
-      updateCurrentUser({ full_name: payload.full_name, email: payload.email });
+      await httpClient.put("/api/auth/me", payload);
+      updateCurrentUser({ full_name: payload.full_name });
       setToast({ type: "success", message: "Đã lưu thông tin tài khoản thành công." });
     } catch (error) {
       if (error?.response?.status === 404) {
-        if (newPassword && currentLocalUser?.password && currentLocalUser.password !== oldPassword) {
-          setErrors((current) => ({
-            ...current,
-            oldPassword: "Mật khẩu cũ không chính xác.",
-          }));
-          return;
-        }
-
+        // Fallback local khi BE chưa có endpoint
         upsertLocalUser({
           ...(currentLocalUser || {}),
           id: currentLocalUser?.id || targetUserId,
-          email: payload.email,
+          email: labelName.trim(),
           full_name: payload.full_name,
-          ...(newPassword ? { password: newPassword } : {}),
+          ...(wantChangePassword && newPassword ? { password: newPassword } : {}),
         });
-
-        updateCurrentUser({
-          id: currentLocalUser?.id || targetUserId,
-          email: payload.email,
-          full_name: payload.full_name,
-        });
+        updateCurrentUser({ id: currentLocalUser?.id || targetUserId, full_name: payload.full_name });
         setToast({ type: "success", message: "Đã lưu thông tin tài khoản (local mode)." });
       } else {
         setToast({ type: "error", message: error?.response?.data?.detail || "Không thể lưu thông tin tài khoản." });
@@ -125,8 +103,10 @@ function AccountSettingsPage() {
       setSaving(false);
     }
 
-    setOldPassword("");
+    // Reset password fields sau khi lưu
+    setWantChangePassword(false);
     setNewPassword("");
+    setConfirmPassword("");
   };
 
   return (
@@ -144,6 +124,7 @@ function AccountSettingsPage() {
         </div>
 
         <div className="space-y-4">
+          {/* Họ & Tên */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-slate-700">Họ</span>
@@ -168,6 +149,7 @@ function AccountSettingsPage() {
             </label>
           </div>
 
+          {/* Email/Label */}
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-slate-700">Email/Label Name</span>
             <input
@@ -178,50 +160,85 @@ function AccountSettingsPage() {
             />
           </label>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">Mật khẩu cũ</span>
-            <div className="relative">
+          {/* Toggle đổi mật khẩu */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <label className="flex cursor-pointer items-center gap-3">
               <input
-                type={showOldPassword ? "text" : "password"}
-                value={oldPassword}
-                onChange={(event) => setOldPassword(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-11 text-sm text-slate-800 outline-none transition focus:border-blue-500"
-                placeholder="Nhập mật khẩu cũ"
+                type="checkbox"
+                checked={wantChangePassword}
+                onChange={(event) => {
+                  setWantChangePassword(event.target.checked);
+                  if (!event.target.checked) {
+                    setNewPassword("");
+                    setConfirmPassword("");
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.newPassword;
+                      delete next.confirmPassword;
+                      return next;
+                    });
+                  }
+                }}
+                className="h-4 w-4 rounded border-slate-300 accent-blue-600"
               />
-              <button
-                type="button"
-                onClick={() => setShowOldPassword((current) => !current)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
-                aria-label="Ẩn/hiện mật khẩu cũ"
-              >
-                {showOldPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {errors.oldPassword ? <p className="mt-1 text-xs text-rose-600">{errors.oldPassword}</p> : null}
-          </label>
+              <span className="text-sm font-medium text-slate-700">Thay đổi mật khẩu</span>
+            </label>
+          </div>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">Mật khẩu mới</span>
-            <div className="relative">
-              <input
-                type={showNewPassword ? "text" : "password"}
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-11 text-sm text-slate-800 outline-none transition focus:border-blue-500"
-                placeholder="Nhập mật khẩu mới"
-              />
-              <button
-                type="button"
-                onClick={() => setShowNewPassword((current) => !current)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
-                aria-label="Ẩn/hiện mật khẩu mới"
-              >
-                {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+          {/* Form nhập mật khẩu mới — chỉ hiện khi toggle bật */}
+          {wantChangePassword ? (
+            <div className="space-y-4 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-slate-700">Mật khẩu mới</span>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-11 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+                    placeholder="Nhập mật khẩu mới"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
+                    aria-label="Ẩn/hiện mật khẩu mới"
+                  >
+                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {errors.newPassword ? (
+                  <p className="mt-1 text-xs text-rose-600">{errors.newPassword}</p>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-500">Phải dài hơn 8 ký tự, gồm chữ hoa, chữ thường và số.</p>
+                )}
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-slate-700">Xác nhận mật khẩu mới</span>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pr-11 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+                    placeholder="Nhập lại mật khẩu mới"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
+                    aria-label="Ẩn/hiện xác nhận mật khẩu"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {errors.confirmPassword ? (
+                  <p className="mt-1 text-xs text-rose-600">{errors.confirmPassword}</p>
+                ) : null}
+              </label>
             </div>
-            {errors.newPassword ? <p className="mt-1 text-xs text-rose-600">{errors.newPassword}</p> : null}
-            <p className="mt-1 text-xs text-slate-500">Mật khẩu mới phải dài hơn 8 ký tự, gồm chữ hoa, chữ thường và số.</p>
-          </label>
+          ) : null}
 
           <div className="flex justify-end pt-2">
             <button

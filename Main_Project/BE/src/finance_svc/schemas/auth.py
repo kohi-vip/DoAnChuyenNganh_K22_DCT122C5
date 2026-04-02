@@ -22,6 +22,11 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class UpdateProfileRequest(BaseModel):
+    full_name: str | None = None
+    new_password: str | None = None
+
+
 class UserResponse(BaseModel):
     id: str
     email: str
