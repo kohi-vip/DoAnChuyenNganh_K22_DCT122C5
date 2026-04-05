@@ -8,6 +8,7 @@ from finance_svc.schemas.ai import (
     NLQueryRequest, NLQueryResponse,
     OCRReceiptResponse, InsightResponse, AnomalyResponse,
     ChatRequest, ChatResponse,
+    JellyChatRequest, JellyChatResponse,
 )
 from finance_svc.services import ai_service, ocr_service
 
@@ -65,3 +66,20 @@ def chat(
     current_user: User = Depends(get_current_user),
 ):
     return ai_service.chat(db, current_user.id, data.message, data.session_id)
+
+
+@router.post("/jelly-chat", response_model=JellyChatResponse)
+async def jelly_chat(
+    data: JellyChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await ai_service.jelly_chat(
+        db,
+        current_user.id,
+        data.message,
+        data.session_id,
+        data.image_base64,
+        data.image_name,
+        data.image_mime_type,
+    )

@@ -68,3 +68,17 @@ class ChatResponse(BaseModel):
     session_id: str
     reply: str
     history: list[ChatMessage]
+
+
+class JellyChatRequest(BaseModel):
+    message: str
+    session_id: str | None = None
+    # Ảnh hóa đơn (base64 thuần, không có prefix data:...)
+    image_base64: str | None = None
+    image_name: str | None = None
+    image_mime_type: str | None = None
+
+
+class JellyChatResponse(BaseModel):
+    session_id: str
+    reply: str

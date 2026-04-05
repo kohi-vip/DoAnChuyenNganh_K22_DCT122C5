@@ -18,7 +18,7 @@ const navItems = [
 	{ id: "home", label: "Trang chủ", icon: Home, path: "/dashboard" },
 	{ id: "history", label: "Lịch sử giao dịch", icon: History, path: "/transactions" },
 	{ id: "wallet-category", label: "Quản lý ví và danh mục", icon: CreditCard, path: "/wallet-categories" },
-	{ id: "ai", label: "Màn hình AI", icon: Bot },
+	{ id: "ai", label: "Trợ lý AI Jelly", icon: Bot, path: "/ai-assistant" },
 	{ id: "report", label: "Thống kê", icon: ChartColumnBig, path: "/reports" },
 	{ id: "account", label: "Cài đặt tài khoản", icon: Settings, path: "/account-settings" },
 ];

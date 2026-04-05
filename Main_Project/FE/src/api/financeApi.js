@@ -164,3 +164,68 @@ export const updateTransaction = async (id, payload) => {
 export const deleteTransaction = async (id) => {
   await httpClient.delete(`/api/transactions/${id}`);
 };
+
+// ─────────────────────────────────────────────
+// AI / JELLY CHATBOT
+// ─────────────────────────────────────────────
+
+/** Chuyển File object sang base64 thuần (không có data URL prefix) */
+const fileToBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+/**
+ * Gửi tin nhắn tới Jelly AI (qua n8n proxy trên BE).
+ * @param {{ message: string, sessionId?: string, imageFile?: File }} params
+ */
+export const jellyChat = async ({ message, sessionId, imageFile }) => {
+  let image_base64 = null;
+  let image_name = null;
+  let image_mime_type = null;
+
+  if (imageFile) {
+    image_base64 = await fileToBase64(imageFile);
+    image_name = imageFile.name;
+    image_mime_type = imageFile.type || "image/jpeg";
+  }
+
+  const res = await httpClient.post(
+    "/api/ai/jelly-chat",
+    { message, session_id: sessionId || null, image_base64, image_name, image_mime_type },
+    { timeout: 90000 },
+  );
+  return res.data; // { session_id, reply }
+};
+
+/**
+ * OCR hóa đơn — gửi file ảnh, nhận thông tin parse.
+ * @param {File} file
+ */
+export const ocrReceipt = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await httpClient.post("/api/ai/ocr-receipt", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 60000,
+  });
+  return res.data; // OCRReceiptResponse
+};
+
+/** Lấy phân tích xu hướng thu chi 3 tháng gần nhất */
+export const fetchAiInsights = async () => {
+  const res = await httpClient.get("/api/ai/insights", { timeout: 30000 });
+  return res.data; // { analysis, suggestions, period }
+};
+
+/** Lấy danh sách chi tiêu bất thường (Z-score) */
+export const fetchAiAnomalies = async () => {
+  const res = await httpClient.get("/api/ai/anomalies", { timeout: 30000 });
+  return res.data; // { anomalies: [...], total_found }
+};
