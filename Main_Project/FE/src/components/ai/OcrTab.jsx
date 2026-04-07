@@ -67,8 +67,8 @@ export default function OcrTab({ onPrefillTransaction }) {
     onPrefillTransaction({
       amount: result.amount,
       note: result.vendor ? `Hóa đơn ${result.vendor}` : "Từ hóa đơn OCR",
-      category: result.suggested_category,
-      date: result.date,
+      suggested_category: result.suggested_category,
+      transacted_at: result.date,
       type: "expense",
     });
   };
@@ -76,7 +76,7 @@ export default function OcrTab({ onPrefillTransaction }) {
   return (
     <div className="space-y-5">
       <p className="text-sm text-slate-500">
-        Chụp hoặc tải ảnh hóa đơn để tự động trích xuất thông tin chi tiêu.
+        Chụp hoặc tải ảnh hóa đơn để trích xuất thông tin rồi mở form giao dịch để kiểm tra lại.
       </p>
 
       {/* Upload zone */}
@@ -197,7 +197,7 @@ export default function OcrTab({ onPrefillTransaction }) {
               className="mt-4 inline-flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-100"
             >
               <Plus className="h-4 w-4" />
-              Thêm giao dịch từ hóa đơn này
+              Mở form giao dịch từ hóa đơn này
             </button>
           )}
         </div>

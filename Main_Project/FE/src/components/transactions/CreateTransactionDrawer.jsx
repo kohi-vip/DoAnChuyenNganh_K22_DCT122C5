@@ -14,7 +14,7 @@ const toDateTimeLocalValue = (date = new Date()) => {
 
 const emptyToast = { type: "", message: "" };
 
-function CreateTransactionDrawer({ open, onClose }) {
+function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
   const { wallets, setWallets, categories, setTransactions } = useAppData();
   const modalRef = useRef(null);
   const amountInputRef = useRef(null);
@@ -96,6 +96,62 @@ function CreateTransactionDrawer({ open, onClose }) {
     const timer = window.setTimeout(() => setToast(emptyToast), 2400);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  const findCategoryIdByName = (categoryName) => {
+    if (!categoryName) {
+      return "";
+    }
+
+    const normalized = categoryName.trim().toLowerCase();
+    for (const parent of categories) {
+      if ((parent.name || "").trim().toLowerCase() === normalized) {
+        return parent.id;
+      }
+
+      const child = (parent.children || []).find((item) => (item.name || "").trim().toLowerCase() === normalized);
+      if (child) {
+        return child.id;
+      }
+    }
+
+    return "";
+  };
+
+  useEffect(() => {
+    if (!open || !initialPrefill) {
+      return;
+    }
+
+    if (initialPrefill.amount) {
+      setAmount(String(initialPrefill.amount));
+    }
+    if (initialPrefill.type === "income" || initialPrefill.type === "expense") {
+      setType(initialPrefill.type);
+    }
+    if (initialPrefill.wallet_id) {
+      setWalletId(initialPrefill.wallet_id);
+    }
+
+    const prefillDate = initialPrefill.transacted_at || initialPrefill.date;
+    if (prefillDate) {
+      setDateTime(toDateTimeLocalValue(new Date(prefillDate)));
+    }
+
+    const prefillNote = initialPrefill.note || (initialPrefill.vendor ? `Hóa đơn ${initialPrefill.vendor}` : "");
+    if (prefillNote) {
+      setNote(prefillNote);
+      setName(prefillNote);
+    }
+
+    if (initialPrefill.category_id) {
+      setCategoryId(initialPrefill.category_id);
+    } else {
+      const matchedCategoryId = findCategoryIdByName(initialPrefill.suggested_category || initialPrefill.category);
+      if (matchedCategoryId) {
+        setCategoryId(matchedCategoryId);
+      }
+    }
+  }, [open, initialPrefill, categories]);
 
   const categoryTree = useMemo(() => {
     const keyword = categorySearch.trim().toLowerCase();
@@ -188,8 +244,6 @@ function CreateTransactionDrawer({ open, onClose }) {
     transacted_at: new Date(dateTime).toISOString(),
     note,
     receipt_url: attachment ? `uploaded://${attachment.name}` : null,
-    source: "manual",
-    is_reviewed: true,
   });
 
   const normalizeTransaction = (apiData, payload) => {
@@ -299,6 +353,7 @@ function CreateTransactionDrawer({ open, onClose }) {
       setScanning(true);
       const formData = new FormData();
       formData.append("file", file);
+
       const response = await httpClient.post("/api/ai/ocr-receipt", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -309,20 +364,25 @@ function CreateTransactionDrawer({ open, onClose }) {
       if (parsed.amount) {
         setAmount(String(parsed.amount));
       }
-      if (parsed.transacted_at) {
-        setDateTime(toDateTimeLocalValue(new Date(parsed.transacted_at)));
+      if (parsed.type === "income" || parsed.type === "expense") {
+        setType(parsed.type);
       }
-      if (parsed.name) {
-        setName(parsed.name);
+      if (parsed.suggested_category) {
+        const matchedCategoryId = findCategoryIdByName(parsed.suggested_category);
+        if (matchedCategoryId) {
+          setCategoryId(matchedCategoryId);
+        }
+      }
+      if (parsed.transacted_at || parsed.date) {
+        setDateTime(toDateTimeLocalValue(new Date(parsed.transacted_at || parsed.date)));
       }
       if (parsed.note || parsed.vendor) {
-        setNote(parsed.note || parsed.vendor);
-      }
-      if (parsed.category_id) {
-        setCategoryId(parsed.category_id);
+        const nextNote = parsed.note || (parsed.vendor ? `Hóa đơn ${parsed.vendor}` : "");
+        setNote(nextNote);
+        setName((current) => current || nextNote);
       }
 
-      setToast({ type: "success", message: "Đã quét hóa đơn, hãy xác nhận thông tin trước khi lưu." });
+      setToast({ type: "success", message: "Đã quét hóa đơn, vui lòng kiểm tra rồi bấm Lưu." });
     } catch (error) {
       setToast({ type: "error", message: error?.response?.data?.detail || "Không thể OCR hóa đơn." });
     } finally {

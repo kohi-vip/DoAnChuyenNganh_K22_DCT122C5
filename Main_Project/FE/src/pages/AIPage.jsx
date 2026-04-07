@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useOutletContext } from "react-router-dom";
 import { Bot, BarChart2, FileSearch } from "lucide-react";
 import JellyChatTab from "../components/ai/JellyChatTab";
 import OcrTab from "../components/ai/OcrTab";
@@ -15,7 +16,7 @@ const TABS = [
     id: "ocr",
     label: "OCR Hóa đơn",
     icon: FileSearch,
-    description: "Quét hóa đơn và thêm giao dịch tự động",
+    description: "Quét hóa đơn, mở form giao dịch để xem lại",
   },
   {
     id: "insights",
@@ -27,14 +28,12 @@ const TABS = [
 
 export default function AIPage() {
   const [activeTab, setActiveTab] = useState("chat");
-  // Dữ liệu prefill từ OCR → mở CreateTransactionDrawer trong layout cha
-  // Hiện tại log ra để debug, sẽ kết nối với drawer khi tích hợp layout
+  const { openCreateTransaction } = useOutletContext();
+
   const handlePrefillTransaction = (data) => {
-    // TODO Phase 3: lift state lên MainLayout để mở CreateTransactionDrawer với data prefill
-    console.log("[AIPage] Prefill transaction:", data);
-    alert(
-      `Sẵn sàng thêm giao dịch!\nCửa hàng: ${data.note}\nSố tiền: ${Number(data.amount || 0).toLocaleString("vi-VN")} đ\n\n(Tính năng prefill drawer sẽ hoàn thiện ở Phase 3)`
-    );
+    if (openCreateTransaction) {
+      openCreateTransaction(data);
+    }
   };
 
   const activeTabInfo = TABS.find((t) => t.id === activeTab);
