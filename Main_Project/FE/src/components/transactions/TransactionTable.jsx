@@ -28,17 +28,12 @@ function TransactionTable({
   rows,
   page,
   totalPages,
-  selectedIds,
-  onToggleAllCurrentPage,
-  onToggleRow,
   onChangePage,
   getWalletName,
   getCategoryMeta,
   onEdit,
   onDelete,
 }) {
-  const allSelected = rows.length > 0 && rows.every((row) => selectedIds.includes(row.id));
-
   const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1);
 
   return (
@@ -47,16 +42,7 @@ function TransactionTable({
         <table className="min-w-[1300px] w-full border-collapse text-sm">
           <thead className="bg-slate-50 text-left text-slate-600">
             <tr>
-              <th className="border-b border-slate-200 px-3 py-3">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={onToggleAllCurrentPage}
-                  aria-label="Chọn tất cả giao dịch trong trang"
-                />
-              </th>
-              <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Tên giao dịch</th>
-              <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Mô tả</th>
+              <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Mô tả chi tiết</th>
               <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Ngày giao dịch</th>
               <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Số tiền giao dịch</th>
               <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Loại</th>
@@ -79,14 +65,6 @@ function TransactionTable({
                   }`}
                 >
                   <td className="px-3 py-3 align-top">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(row.id)}
-                      onChange={() => onToggleRow(row.id)}
-                    />
-                  </td>
-
-                  <td className="px-3 py-3 align-top">
                     <div className="flex items-start gap-2">
                       <span
                         className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full ${
@@ -106,7 +84,7 @@ function TransactionTable({
                         )}
                       </span>
                       <div>
-                        <p className="font-semibold text-slate-800">{row.name}</p>
+                        <p className="font-semibold text-slate-800">{row.description || row.name}</p>
                         <p className="text-xs text-slate-500">
                           {row.source === "manual" ? "Thủ công" : row.source === "auto_sync" ? "Tự đồng bộ" : "Chuyển khoản nội bộ"}
                           {isUnreviewedAutoSync ? " • Chưa review" : ""}
@@ -114,8 +92,6 @@ function TransactionTable({
                       </div>
                     </div>
                   </td>
-
-                  <td className="px-3 py-3 align-top text-slate-600">{row.description}</td>
                   <td className="px-3 py-3 align-top text-slate-700">{formatDate(row.transacted_at || row.date)}</td>
                   <td
                     className={`px-3 py-3 align-top font-semibold ${

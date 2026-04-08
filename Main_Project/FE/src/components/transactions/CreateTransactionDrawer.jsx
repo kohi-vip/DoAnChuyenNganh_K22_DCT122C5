@@ -1,4 +1,4 @@
-import { Camera, Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import httpClient from "../../api/httpClient";
 import { useAppData } from "../../stores/AppDataContext";
@@ -15,26 +15,20 @@ const toDateTimeLocalValue = (date = new Date()) => {
 const emptyToast = { type: "", message: "" };
 
 function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
-  const { wallets, setWallets, categories, setTransactions } = useAppData();
+  const { wallets, setWallets, categories, setTransactions, refreshAll } = useAppData();
   const modalRef = useRef(null);
   const amountInputRef = useRef(null);
-  const ocrFileRef = useRef(null);
 
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
-  const [name, setName] = useState("");
   const [walletId, setWalletId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [dateTime, setDateTime] = useState(toDateTimeLocalValue());
   const [note, setNote] = useState("");
-  const [attachment, setAttachment] = useState(null);
 
   const [categorySearch, setCategorySearch] = useState("");
-  const [aiInput, setAiInput] = useState("");
   const [toast, setToast] = useState(emptyToast);
   const [submitting, setSubmitting] = useState(false);
-  const [parsing, setParsing] = useState(false);
-  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -45,8 +39,13 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
       amountInputRef.current?.focus();
     }, 10);
 
+    setType(initialPrefill?.type === "income" ? "income" : "expense");
+    setAmount(initialPrefill?.amount ? String(initialPrefill.amount) : "");
+    setNote(initialPrefill?.note || (initialPrefill?.vendor ? `Hóa đơn ${initialPrefill.vendor}` : ""));
+    setCategoryId(initialPrefill?.category_id || "");
     setWalletId((current) => current || wallets[0]?.id || "");
     setDateTime((current) => current || toDateTimeLocalValue());
+    setCategorySearch("");
   }, [open, wallets]);
 
   useEffect(() => {
@@ -97,26 +96,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const findCategoryIdByName = (categoryName) => {
-    if (!categoryName) {
-      return "";
-    }
-
-    const normalized = categoryName.trim().toLowerCase();
-    for (const parent of categories) {
-      if ((parent.name || "").trim().toLowerCase() === normalized) {
-        return parent.id;
-      }
-
-      const child = (parent.children || []).find((item) => (item.name || "").trim().toLowerCase() === normalized);
-      if (child) {
-        return child.id;
-      }
-    }
-
-    return "";
-  };
-
   useEffect(() => {
     if (!open || !initialPrefill) {
       return;
@@ -140,16 +119,10 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
     const prefillNote = initialPrefill.note || (initialPrefill.vendor ? `Hóa đơn ${initialPrefill.vendor}` : "");
     if (prefillNote) {
       setNote(prefillNote);
-      setName(prefillNote);
     }
 
     if (initialPrefill.category_id) {
       setCategoryId(initialPrefill.category_id);
-    } else {
-      const matchedCategoryId = findCategoryIdByName(initialPrefill.suggested_category || initialPrefill.category);
-      if (matchedCategoryId) {
-        setCategoryId(matchedCategoryId);
-      }
     }
   }, [open, initialPrefill, categories]);
 
@@ -180,7 +153,14 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
   useEffect(() => {
     const firstParent = categoryTree[0];
     const firstChild = firstParent?.children?.[0];
-    if (!categoryId || !categoryTree.some((parent) => parent.id === categoryId || parent.children.some((child) => child.id === categoryId))) {
+    if (!categoryId) {
+      return;
+    }
+
+    const isValidSelection = categoryTree.some(
+      (parent) => parent.id === categoryId || parent.children.some((child) => child.id === categoryId)
+    );
+    if (!isValidSelection) {
       setCategoryId(firstChild?.id || firstParent?.id || "");
     }
   }, [categoryTree, categoryId]);
@@ -209,12 +189,12 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
     return `${new Intl.NumberFormat("vi-VN").format(numeric)} VND`;
   }, [amount]);
 
+  const getDefaultNote = () => (type === "income" ? "Tiền thu" : "Tiền chi");
+
   const resetForNext = () => {
     setAmount("");
-    setName("");
     setNote("");
-    setAttachment(null);
-    setAiInput("");
+    setCategoryId("");
     setCategorySearch("");
   };
 
@@ -236,14 +216,12 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
   };
 
   const buildPayload = () => ({
-    name: name.trim(),
     amount: Number(amount),
     type,
     wallet_id: walletId,
     category_id: categoryId,
     transacted_at: new Date(dateTime).toISOString(),
-    note,
-    receipt_url: attachment ? `uploaded://${attachment.name}` : null,
+    note: note.trim() || getDefaultNote(),
   });
 
   const normalizeTransaction = (apiData, payload) => {
@@ -252,7 +230,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
 
     return {
       id: body.id || `tx_${Date.now()}`,
-      name: body.name || payload.name || "Giao dịch mới",
+      name: body.note || payload.note || "Giao dịch",
       description: body.note || payload.note || "",
       date: transactedAt,
       transacted_at: transactedAt,
@@ -267,7 +245,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
   };
 
   const saveTransaction = async (keepOpen) => {
-    if (!name.trim() || !amount || Number(amount) <= 0 || !walletId || !categoryId || !dateTime) {
+    if (!amount || Number(amount) <= 0 || !walletId || !categoryId || !dateTime) {
       setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
       return;
     }
@@ -297,97 +275,13 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
     if (keepOpen) {
       resetForNext();
       amountInputRef.current?.focus();
+      await refreshAll();
       return;
     }
 
     onClose();
     resetForNext();
-  };
-
-  const handleParseNlp = async () => {
-    if (!aiInput.trim()) {
-      return;
-    }
-
-    try {
-      setParsing(true);
-      const response = await httpClient.post("/api/ai/parse-transaction", { text: aiInput.trim() });
-      const parsed = response.data || {};
-
-      if (parsed.amount) {
-        setAmount(String(parsed.amount));
-      }
-      if (parsed.type === "income" || parsed.type === "expense") {
-        setType(parsed.type);
-      }
-      if (parsed.wallet_id) {
-        setWalletId(parsed.wallet_id);
-      }
-      if (parsed.category_id) {
-        setCategoryId(parsed.category_id);
-      }
-      if (parsed.transacted_at) {
-        setDateTime(toDateTimeLocalValue(new Date(parsed.transacted_at)));
-      }
-      if (parsed.name) {
-        setName(parsed.name);
-      }
-      if (parsed.note || parsed.vendor) {
-        setNote(parsed.note || parsed.vendor);
-      }
-
-      setToast({ type: "success", message: "Đã phân tích nội dung AI, vui lòng kiểm tra lại trước khi lưu." });
-    } catch (error) {
-      setToast({ type: "error", message: error?.response?.data?.detail || "Không thể phân tích bằng AI." });
-    } finally {
-      setParsing(false);
-    }
-  };
-
-  const handleOcrReceipt = async (file) => {
-    if (!file) {
-      return;
-    }
-
-    try {
-      setScanning(true);
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await httpClient.post("/api/ai/ocr-receipt", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      const parsed = response.data || {};
-      setAttachment(file);
-
-      if (parsed.amount) {
-        setAmount(String(parsed.amount));
-      }
-      if (parsed.type === "income" || parsed.type === "expense") {
-        setType(parsed.type);
-      }
-      if (parsed.suggested_category) {
-        const matchedCategoryId = findCategoryIdByName(parsed.suggested_category);
-        if (matchedCategoryId) {
-          setCategoryId(matchedCategoryId);
-        }
-      }
-      if (parsed.transacted_at || parsed.date) {
-        setDateTime(toDateTimeLocalValue(new Date(parsed.transacted_at || parsed.date)));
-      }
-      if (parsed.note || parsed.vendor) {
-        const nextNote = parsed.note || (parsed.vendor ? `Hóa đơn ${parsed.vendor}` : "");
-        setNote(nextNote);
-        setName((current) => current || nextNote);
-      }
-
-      setToast({ type: "success", message: "Đã quét hóa đơn, vui lòng kiểm tra rồi bấm Lưu." });
-    } catch (error) {
-      setToast({ type: "error", message: error?.response?.data?.detail || "Không thể OCR hóa đơn." });
-    } finally {
-      setScanning(false);
-    }
+    await refreshAll();
   };
 
   if (!open) {
@@ -419,48 +313,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
           </div>
 
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-            <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <Sparkles className="h-4 w-4 text-blue-600" /> AI Shortcut
-              </div>
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    value={aiInput}
-                    onChange={(event) => setAiInput(event.target.value)}
-                    placeholder="Nhập bằng giọng nói hoặc văn bản..."
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleParseNlp}
-                    disabled={parsing}
-                    className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                  >
-                    {parsing ? "Đang parse" : "Parse"}
-                  </button>
-                </div>
-
-                <div>
-                  <input
-                    ref={ocrFileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => handleOcrReceipt(event.target.files?.[0])}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => ocrFileRef.current?.click()}
-                    disabled={scanning}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed"
-                  >
-                    <Camera className="h-4 w-4" /> {scanning ? "Đang OCR..." : "OCR hóa đơn"}
-                  </button>
-                </div>
-              </div>
-            </section>
-
             <section className="space-y-4">
               <div className="mx-auto w-full max-w-xl space-y-4">
                 <label className="block">
@@ -497,18 +349,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
                   </button>
                 </div>
               </div>
-
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">Tên giao dịch (Required)</span>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Ví dụ: Ăn trưa, Thanh toán điện..."
-                  required
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                />
-              </label>
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <div className="space-y-4">
@@ -578,26 +418,18 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
                   </div>
 
                   <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">Ghi chú chi tiết (Optional)</span>
+                    <span className="mb-1 block text-sm font-medium text-slate-700">Mô tả chi tiết</span>
                     <textarea
                       value={note}
                       onChange={(event) => setNote(event.target.value)}
                       rows={2}
+                      placeholder="Nếu để trống, hệ thống sẽ tự điền Tiền chi hoặc Tiền thu"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
                     />
+                    <p className="mt-1 text-xs text-slate-500">Bỏ trống thì khi lưu sẽ tự điền theo loại giao dịch.</p>
                   </label>
                 </div>
               </div>
-
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">Đính kèm hóa đơn</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => setAttachment(event.target.files?.[0] || null)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none"
-                />
-              </label>
             </section>
           </div>
 

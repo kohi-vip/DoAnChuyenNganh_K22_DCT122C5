@@ -38,7 +38,6 @@ function TransactionsPage() {
     type: "all",
   });
   const [page, setPage] = useState(1);
-  const [selectedIds, setSelectedIds] = useState([]);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [deletingTransaction, setDeletingTransaction] = useState(null);
   const [feedback, setFeedback] = useState(null);
@@ -170,24 +169,6 @@ function TransactionsPage() {
       color: "#64748b",
     };
 
-  const handleToggleRow = (id) => {
-    setSelectedIds((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
-    );
-  };
-
-  const handleToggleAllCurrentPage = () => {
-    const rowIds = paginatedRows.map((row) => row.id);
-    const allChecked = rowIds.every((id) => selectedIds.includes(id));
-
-    if (allChecked) {
-      setSelectedIds((current) => current.filter((id) => !rowIds.includes(id)));
-      return;
-    }
-
-    setSelectedIds((current) => [...new Set([...current, ...rowIds])]);
-  };
-
   const handleSaveEdit = async (updatedTransaction) => {
     const oldTransaction = transactions.find((item) => item.id === updatedTransaction.id);
     if (!oldTransaction) {
@@ -234,7 +215,6 @@ function TransactionsPage() {
       }
     });
 
-    setSelectedIds((current) => current.filter((id) => id !== deletingTransaction.id));
     setFeedback({ type: "success", message: "Đã xóa giao dịch và hoàn tác số dư ví." });
     setDeletingTransaction(null);
   };
@@ -281,9 +261,6 @@ function TransactionsPage() {
         rows={paginatedRows}
         page={page}
         totalPages={totalPages}
-        selectedIds={selectedIds}
-        onToggleAllCurrentPage={handleToggleAllCurrentPage}
-        onToggleRow={handleToggleRow}
         onChangePage={setPage}
         getWalletName={getWalletName}
         getCategoryMeta={getCategoryMeta}
