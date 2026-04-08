@@ -10,13 +10,13 @@ const TABS = [
     id: "chat",
     label: "Trợ lý Jelly",
     icon: Bot,
-    description: "Chat AI tư vấn tài chính, hỗ trợ gửi hóa đơn",
+    description: "Chat AI tư vấn tài chính cá nhân",
   },
   {
     id: "ocr",
     label: "OCR Hóa đơn",
     icon: FileSearch,
-    description: "Quét hóa đơn, mở form giao dịch để xem lại",
+    description: "Đọc hóa đơn và tự điền form thêm giao dịch để bạn xác nhận",
   },
   {
     id: "insights",

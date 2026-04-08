@@ -66,10 +66,10 @@ export default function OcrTab({ onPrefillTransaction }) {
     if (!result || !onPrefillTransaction) return;
     onPrefillTransaction({
       amount: result.amount,
-      note: result.vendor ? `Hóa đơn ${result.vendor}` : "Từ hóa đơn OCR",
+      note: result.note || (result.vendor ? `Hóa đơn ${result.vendor}` : "Từ hóa đơn OCR"),
       suggested_category: result.suggested_category,
-      transacted_at: result.date,
-      type: "expense",
+      transacted_at: result.transacted_at || result.date,
+      type: result.type || "expense",
     });
   };
 
@@ -168,6 +168,7 @@ export default function OcrTab({ onPrefillTransaction }) {
             />
             <InfoRow label="Ngày" value={result.date} />
             <InfoRow label="Danh mục gợi ý" value={result.suggested_category} />
+            <InfoRow label="Ghi chú gợi ý" value={result.note} />
           </div>
 
           {result.line_items?.length > 0 && (

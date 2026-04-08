@@ -140,6 +140,12 @@ def _extract_ocr_fields(data: dict) -> dict:
     # Category gợi ý
     suggested_category = _get("suggested_category", "category", "expense_category")
 
+    note = _get("note")
+    transacted_at = _get("transacted_at", "date", "invoice_date", "receipt_date", "transaction_date")
+    confidence = _get("confidence")
+    needs_review = _get("needs_review")
+    warnings = _get("warnings")
+
     # Line items
     line_items_raw = _get("line_items", "items", "products")
     line_items = line_items_raw if isinstance(line_items_raw, list) else []
@@ -147,9 +153,14 @@ def _extract_ocr_fields(data: dict) -> dict:
     return {
         "amount": amount,
         "date": date,
+        "transacted_at": transacted_at,
         "vendor": vendor,
+        "note": note,
         "suggested_category": suggested_category,
         "line_items": line_items,
+        "confidence": confidence if isinstance(confidence, dict) else None,
+        "needs_review": bool(needs_review) if needs_review is not None else True,
+        "warnings": warnings if isinstance(warnings, list) else [],
     }
 
 
@@ -205,9 +216,14 @@ async def _parse_receipt_via_n8n(
 
     amount = fields["amount"]
     date = fields["date"]
+    transacted_at = fields["transacted_at"]
     vendor = fields["vendor"]
+    note = fields["note"]
     suggested_category = fields["suggested_category"]
     line_items = fields["line_items"]
+    confidence = fields["confidence"]
+    needs_review = fields["needs_review"]
+    warnings = fields["warnings"]
 
     # Nếu n8n chưa suggest category → dùng Groq để gợi ý
     if not suggested_category and vendor and user_categories:
@@ -216,9 +232,15 @@ async def _parse_receipt_via_n8n(
     return OCRReceiptResponse(
         amount=Decimal(str(amount)) if amount is not None else None,
         date=str(date) if date else None,
+        transacted_at=str(transacted_at) if transacted_at else (str(date) if date else None),
+        type="expense",
         vendor=str(vendor) if vendor else None,
+        note=str(note) if note else (f"Hóa đơn {vendor}" if vendor else None),
         suggested_category=suggested_category,
         line_items=line_items,
+        confidence=confidence,
+        needs_review=needs_review,
+        warnings=warnings,
         raw_data={k: v for k, v in raw_data.items() if k != "line_items"},
     )
 
@@ -261,9 +283,15 @@ async def _parse_receipt_via_veryfi(
     return OCRReceiptResponse(
         amount=Decimal(str(amount)) if amount else None,
         date=str(date) if date else None,
+        transacted_at=str(date) if date else None,
+        type="expense",
         vendor=vendor,
+        note=f"Hóa đơn {vendor}" if vendor else None,
         suggested_category=suggested_category,
         line_items=line_items if isinstance(line_items, list) else [],
+        confidence=None,
+        needs_review=True,
+        warnings=[],
         raw_data={k: v for k, v in result.items() if k not in ("line_items",)},
     )
 

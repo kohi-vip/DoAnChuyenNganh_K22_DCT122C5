@@ -30,6 +30,26 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
   const [toast, setToast] = useState(emptyToast);
   const [submitting, setSubmitting] = useState(false);
 
+  const findCategoryIdByName = (categoryName) => {
+    if (!categoryName) {
+      return "";
+    }
+
+    const normalized = categoryName.trim().toLowerCase();
+    for (const parent of categories) {
+      if ((parent.name || "").trim().toLowerCase() === normalized) {
+        return parent.id;
+      }
+
+      const child = (parent.children || []).find((item) => (item.name || "").trim().toLowerCase() === normalized);
+      if (child) {
+        return child.id;
+      }
+    }
+
+    return "";
+  };
+
   useEffect(() => {
     if (!open) {
       return;
@@ -123,6 +143,11 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
 
     if (initialPrefill.category_id) {
       setCategoryId(initialPrefill.category_id);
+    } else {
+      const matchedCategoryId = findCategoryIdByName(initialPrefill.suggested_category || initialPrefill.category);
+      if (matchedCategoryId) {
+        setCategoryId(matchedCategoryId);
+      }
     }
   }, [open, initialPrefill, categories]);
 

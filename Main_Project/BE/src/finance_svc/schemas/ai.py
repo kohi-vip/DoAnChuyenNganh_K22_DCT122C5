@@ -29,9 +29,15 @@ class NLQueryResponse(BaseModel):
 class OCRReceiptResponse(BaseModel):
     amount: Decimal | None = None
     date: str | None = None
+    transacted_at: str | None = None
+    type: str = "expense"
     vendor: str | None = None
+    note: str | None = None
     suggested_category: str | None = None
     line_items: list[dict] = []
+    confidence: dict | None = None
+    needs_review: bool = True
+    warnings: list[str] = []
     raw_data: dict = {}
 
 
