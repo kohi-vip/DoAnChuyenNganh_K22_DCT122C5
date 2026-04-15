@@ -1,14 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, ImagePlus, Loader2, Send, X } from "lucide-react";
 import { jellyChat } from "../../api/financeApi";
-
-const WELCOME_MSG = {
-  role: "assistant",
-  content:
-    "Xin chào! Tôi là Jelly 👋 — trợ lý tài chính cá nhân của bạn.\n" +
-    "Tôi có thể giúp bạn phân tích chi tiêu, đọc hóa đơn, hoặc tư vấn tiết kiệm.\n" +
-    "Hãy nhập câu hỏi hoặc gửi ảnh hóa đơn để bắt đầu nhé!",
-};
+import { useChatSession } from "../../stores/ChatSessionContext";
 
 function ChatBubble({ msg }) {
   const isUser = msg.role === "user";
@@ -55,11 +48,10 @@ function TypingIndicator() {
 }
 
 export default function JellyChatTab() {
-  const [messages, setMessages] = useState([WELCOME_MSG]);
+  const { messages, setMessages, sessionId, setSessionId } = useChatSession();
   const [input, setInput] = useState("");
   const [selectedImage, setSelectedImage] = useState(null); // { file, previewUrl }
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState(null);
   const [error, setError] = useState(null);
 
   const bottomRef = useRef(null);
