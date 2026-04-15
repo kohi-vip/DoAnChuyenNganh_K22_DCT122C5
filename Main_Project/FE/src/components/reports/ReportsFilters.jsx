@@ -72,6 +72,7 @@ function ReportsFilters({
               <input
                 type="date"
                 value={customFrom}
+                max={customTo || undefined}
                 onChange={(event) => onCustomFromChange(event.target.value)}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500"
               />
@@ -81,6 +82,7 @@ function ReportsFilters({
               <input
                 type="date"
                 value={customTo}
+                min={customFrom || undefined}
                 onChange={(event) => onCustomToChange(event.target.value)}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500"
               />
@@ -88,6 +90,12 @@ function ReportsFilters({
           </>
         ) : null}
       </div>
+
+      {mode === "custom" && customFrom && customTo && customFrom > customTo ? (
+        <p className="mt-2 text-xs font-medium text-rose-600">
+          ⚠️ "Từ ngày" phải trước hoặc bằng "Đến ngày".
+        </p>
+      ) : null}
     </section>
   );
 }

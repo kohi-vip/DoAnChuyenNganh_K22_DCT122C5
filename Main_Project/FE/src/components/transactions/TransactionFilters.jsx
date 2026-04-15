@@ -5,6 +5,11 @@ function TransactionFilters({
   walletOptions,
   categoryOptions,
 }) {
+  const dateRangeInvalid =
+    Boolean(draftFilters.dateFrom) &&
+    Boolean(draftFilters.dateTo) &&
+    draftFilters.dateFrom > draftFilters.dateTo;
+
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
@@ -13,6 +18,7 @@ function TransactionFilters({
           <input
             type="date"
             value={draftFilters.dateFrom}
+            max={draftFilters.dateTo || undefined}
             onChange={(event) => onChangeDraft("dateFrom", event.target.value)}
             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
           />
@@ -23,6 +29,7 @@ function TransactionFilters({
           <input
             type="date"
             value={draftFilters.dateTo}
+            min={draftFilters.dateFrom || undefined}
             onChange={(event) => onChangeDraft("dateTo", event.target.value)}
             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
           />
@@ -78,12 +85,19 @@ function TransactionFilters({
           <button
             type="button"
             onClick={onApplyFilters}
-            className="w-full rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+            disabled={dateRangeInvalid}
+            className="w-full rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             Lọc dữ liệu
           </button>
         </div>
       </div>
+
+      {dateRangeInvalid ? (
+        <p className="mt-2 text-xs font-medium text-rose-600">
+          ⚠️ "Từ ngày" phải trước hoặc bằng "Đến ngày".
+        </p>
+      ) : null}
     </section>
   );
 }
