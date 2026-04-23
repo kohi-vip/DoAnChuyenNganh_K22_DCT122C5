@@ -1,11 +1,13 @@
 import csv
 import io
-from datetime import datetime
+import calendar
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from finance_svc.models.transaction import Transaction
 from finance_svc.models.wallet import Wallet
+from finance_svc.models.recurring_transaction import RecurringTransaction
 from finance_svc.schemas.transaction import TransactionCreate, TransactionUpdate, TransactionResponse, TransactionListResponse
 import uuid
 
@@ -17,10 +19,42 @@ def create_transaction(db: Session, user_id: str, data: TransactionCreate) -> Tr
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet not found")
 
+    recurring = None
+    current_due = None
+    cycle_end = None
+    if data.recurring_id:
+        recurring = db.query(RecurringTransaction).filter(RecurringTransaction.id == data.recurring_id).first()
+        if not recurring:
+            raise HTTPException(status_code=404, detail="Recurring transaction not found")
+        if recurring.wallet_id != data.wallet_id:
+            raise HTTPException(status_code=422, detail="Recurring transaction does not belong to selected wallet")
+
+        current_due = recurring.next_due_date
+        cycle_start = datetime.combine(current_due, time.min)
+        if recurring.notification_enabled and recurring.remind_before_minutes:
+            cycle_start = cycle_start - timedelta(minutes=recurring.remind_before_minutes)
+        if data.transacted_at < cycle_start:
+            raise HTTPException(status_code=422, detail="Kỳ giao dịch này chưa đến thời gian thanh toán")
+
+        cycle_end = _next_date(current_due, recurring.frequency)
+        paid_in_cycle = (
+            db.query(Transaction.id)
+            .filter(
+                Transaction.recurring_id == recurring.id,
+                Transaction.source != "auto_sync",
+                Transaction.transacted_at >= cycle_start,
+                Transaction.transacted_at < datetime.combine(cycle_end, time.min),
+            )
+            .first()
+        )
+        if paid_in_cycle:
+            raise HTTPException(status_code=409, detail="Kỳ giao dịch này đã được thanh toán")
+
     txn = Transaction(
         id=str(uuid.uuid4()),
         wallet_id=data.wallet_id,
         category_id=data.category_id,
+        recurring_id=data.recurring_id,
         type=data.type,
         amount=data.amount,
         currency=data.currency,
@@ -35,9 +69,36 @@ def create_transaction(db: Session, user_id: str, data: TransactionCreate) -> Tr
         wallet.balance += data.amount
     else:
         wallet.balance -= data.amount
+
+    if recurring and recurring.is_active:
+        if current_due and cycle_end and data.transacted_at.date() >= current_due:
+            recurring.next_due_date = cycle_end
+            if recurring.end_date and recurring.next_due_date > recurring.end_date:
+                recurring.is_active = False
+
     db.commit()
     db.refresh(txn)
     return TransactionResponse.model_validate(txn)
+
+
+def _next_date(from_date: date, frequency: str) -> date:
+    if frequency == "daily":
+        return from_date + timedelta(days=1)
+    if frequency == "weekly":
+        return from_date + timedelta(weeks=1)
+    if frequency == "monthly":
+        month = from_date.month + 1
+        year = from_date.year + (month - 1) // 12
+        month = (month - 1) % 12 + 1
+        last_day = calendar.monthrange(year, month)[1]
+        day = min(from_date.day, last_day)
+        return date(year, month, day)
+    if frequency == "yearly":
+        year = from_date.year + 1
+        if from_date.month == 2 and from_date.day == 29 and not calendar.isleap(year):
+            return date(year, 2, 28)
+        return date(year, from_date.month, from_date.day)
+    return from_date + timedelta(days=1)
 
 
 def list_transactions(

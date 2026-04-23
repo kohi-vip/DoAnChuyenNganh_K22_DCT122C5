@@ -1,0 +1,36 @@
+Sprint log 21/4/2026
+
+Thêm giao dịch
+    Ko đc chọn trước danh mục
+    Bỏ đính kèm hóa đơn
+    Bỏ ghi chú --> Tên giao dịch đổi thành nội dung giao dịch
+        --> add thêm data nội dung mặc định...
+    Phải reload lại sau khi tạo bất kì loại giao dịch gì để tab lịch sử giao dịch được đồng bộ
+    Thiết kế test case
+    --> Tuấn, dl: Chủ nhật 26/4
+
+Thông báo
+    Đánh dấu đã đọc --> toggle
+    Chỉnh sửa tạo thêm giao dịch khi thông báo --> hiện form tạo giao dịch và điền sẵn, trường hợp người dùng chưa muốn trả thì vẫn giữ nguyên thông báo
+    --> Jelly, dl: thứ 7 25/4
+    
+Quản lý ví và danh mục    
+    Lọc danh mục --> lọc theo cha
+    Lỗi logic --> Ví giá trị âm
+    Lỗi logic lọc danh mục
+    Sửa UI phần thông báo định kỳ
+    --> Nghĩa, dl: thứ 7 25/4
+
+Con Jelly khốn khổ
+    Không lưu lại ảnh sau khi chuyển tab
+    OCR có thể chụp hóa đơn 
+Word
+    Trang bìa 
+    Trang cam kết
+    Mục lục
+    Tóm tắt đồ án
+    Chương 1
+
+    Chương 2
+    --> Khôi: dl, Thứ 7 25/4
+--> Phát triển thêm: Chuyển lên web mobile: iOS/Android ?

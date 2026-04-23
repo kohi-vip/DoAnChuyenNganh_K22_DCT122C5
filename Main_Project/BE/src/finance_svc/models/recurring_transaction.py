@@ -1,7 +1,7 @@
 import uuid
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal
-from sqlalchemy import String, Date, Numeric, Boolean, Text, ForeignKey
+from sqlalchemy import String, Date, DateTime, Time, Numeric, Boolean, Integer, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from finance_svc.models.base import Base
 
@@ -16,10 +16,16 @@ class RecurringTransaction(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     note: Mapped[str | None] = mapped_column(Text)
     frequency: Mapped[str] = mapped_column(String(20), nullable=False)  # 'daily'|'weekly'|'monthly'|'yearly'
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
     next_due_date: Mapped[date] = mapped_column(Date, nullable=False)
+    execution_time: Mapped[time] = mapped_column(Time, nullable=False, default=time(8, 0))
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notification_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    remind_before_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    last_notified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     wallet: Mapped["Wallet"] = relationship("Wallet", back_populates="recurring_transactions")
     category: Mapped["Category | None"] = relationship("Category", back_populates="recurring_transactions")
     generated_transactions: Mapped[list["Transaction"]] = relationship("Transaction", back_populates="recurring")
+    notifications: Mapped[list["Notification"]] = relationship("Notification", back_populates="recurring")

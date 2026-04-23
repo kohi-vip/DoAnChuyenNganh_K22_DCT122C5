@@ -27,3 +27,8 @@ def update_recurring(rec_id: str, data: RecurringUpdate, db: Session = Depends(g
 @router.delete("/{rec_id}", status_code=204)
 def delete_recurring(rec_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     recurring_service.delete_recurring(db, current_user.id, rec_id)
+
+
+@router.post("/{rec_id}/pay-now", response_model=RecurringResponse)
+def pay_now_recurring(rec_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return recurring_service.pay_now_recurring(db, current_user.id, rec_id)

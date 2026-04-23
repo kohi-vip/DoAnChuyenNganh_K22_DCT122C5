@@ -7,7 +7,7 @@ function TransactionFilters({
 }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
         <div>
           <label className="mb-1 block text-xs font-semibold text-slate-600">Từ ngày</label>
           <input
@@ -26,6 +26,19 @@ function TransactionFilters({
             onChange={(event) => onChangeDraft("dateTo", event.target.value)}
             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
           />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-600">Phân loại giao dịch</label>
+          <select
+            value={draftFilters.transactionKind}
+            onChange={(event) => onChangeDraft("transactionKind", event.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500"
+          >
+            <option value="all">Tất cả giao dịch</option>
+            <option value="regular">Giao dịch thường</option>
+            <option value="recurring">Giao dịch định kỳ</option>
+          </select>
         </div>
 
         <div>

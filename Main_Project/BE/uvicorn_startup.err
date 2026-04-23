@@ -1,0 +1,328 @@
+INFO:     Will watch for changes in these directories: ['E:\\SupremeGithub\\DoAnChuyenNganh_K22_DCT122C5\\Main_Project\\BE']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [21216] using WatchFiles
+INFO:     Started server process [33540]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u1ec1' in position 293: character maps to <undefined>
+Call stack:
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1014, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1043, in _bootstrap_inner
+    self.run()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\src\finance_svc\views\recurring.py", line 19, in create_recurring
+    return recurring_service.create_recurring(db, current_user.id, data)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\src\finance_svc\services\recurring_service.py", line 38, in create_recurring
+    db.commit()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2030, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1311, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1286, in _prepare_impl
+    self.session.flush()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4331, in flush
+    self._flush(objects)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4427, in _flush
+    flush_context.execute()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1048, in _emit_insert_statements
+    result = connection.execute(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1904, in _exec_single_context
+    self._log_info(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 187, in _log_info
+    self.engine.logger.info(message, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\log.py", line 159, in info
+    self.log(logging.INFO, msg, *args, **kwargs)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\log.py", line 210, in log
+    self.logger._log(level, msg, args, **kwargs)
+Message: '[%s] %r'
+Arguments: ('generated in 0.00027s', {'id': 'f37070a8-bc83-44c2-8658-710e11b1a6d9', 'wallet_id': 'bbbbbbbb-0001-0001-0001-000000000001', 'category_id': 'cccccccc-0003-0001-0001-000000000001', 'type': 'income', 'amount': Decimal('10000000'), 'note': 'ti\u1ec1n ng\u1ee7', 'frequency': 'monthly', 'start_date': datetime.date(2026, 4, 22), 'next_due_date': datetime.date(2026, 4, 22), 'execution_time': datetime.time(8, 0), 'end_date': None, 'notification_enabled': 1, 'remind_before_minutes': 30, 'last_notified_at': None, 'is_active': 1})
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u1ec1' in position 296: character maps to <undefined>
+Call stack:
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1014, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1043, in _bootstrap_inner
+    self.run()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\src\finance_svc\views\recurring.py", line 19, in create_recurring
+    return recurring_service.create_recurring(db, current_user.id, data)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\src\finance_svc\services\recurring_service.py", line 38, in create_recurring
+    db.commit()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2030, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1311, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1286, in _prepare_impl
+    self.session.flush()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4331, in flush
+    self._flush(objects)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4427, in _flush
+    flush_context.execute()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1048, in _emit_insert_statements
+    result = connection.execute(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1904, in _exec_single_context
+    self._log_info(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 187, in _log_info
+    self.engine.logger.info(message, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\log.py", line 159, in info
+    self.log(logging.INFO, msg, *args, **kwargs)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\log.py", line 210, in log
+    self.logger._log(level, msg, args, **kwargs)
+Message: '[%s] %r'
+Arguments: ('cached since 734.3s ago', {'id': '96fc0ee8-e09a-463e-a7ee-1d0de1a3e193', 'wallet_id': 'bbbbbbbb-0001-0001-0001-000000000001', 'category_id': 'cccccccc-0003-0001-0001-000000000001', 'type': 'income', 'amount': Decimal('123123123'), 'note': 'ti\u1ec1n \u0103n \u1edf', 'frequency': 'monthly', 'start_date': datetime.date(2026, 4, 22), 'next_due_date': datetime.date(2026, 4, 22), 'execution_time': datetime.time(8, 0), 'end_date': None, 'notification_enabled': 0, 'remind_before_minutes': 30, 'last_notified_at': None, 'is_active': 1})
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u1ec1' in position 372: character maps to <undefined>
+Call stack:
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1014, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1043, in _bootstrap_inner
+    self.run()
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 994, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 93, in _worker
+    work_item.run()
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\apscheduler\executors\base.py", line 131, in run_job
+    retval = job.func(*job.args, **job.kwargs)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\src\finance_svc\asgi.py", line 22, in _run_recurring_job
+    process_due_recurring(db)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\src\finance_svc\services\recurring_service.py", line 138, in process_due_recurring
+    return from_date + timedelta(weeks=1)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2030, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1311, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1286, in _prepare_impl
+    self.session.flush()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4331, in flush
+    self._flush(objects)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4427, in _flush
+    flush_context.execute()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1048, in _emit_insert_statements
+    result = connection.execute(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1904, in _exec_single_context
+    self._log_info(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 187, in _log_info
+    self.engine.logger.info(message, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\log.py", line 159, in info
+    self.log(logging.INFO, msg, *args, **kwargs)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\log.py", line 210, in log
+    self.logger._log(level, msg, args, **kwargs)
+Message: '[%s] %r'
+Arguments: ('generated in 0.00030s', {'id': 'd52000b5-fedf-4945-819f-7842645c4ea1', 'wallet_id': 'bbbbbbbb-0001-0001-0001-000000000001', 'category_id': 'cccccccc-0003-0001-0001-000000000001', 'recurring_id': '96fc0ee8-e09a-463e-a7ee-1d0de1a3e193', 'type': 'income', 'amount': Decimal('123123123.00'), 'currency': 'VND', 'note': 'ti\u1ec1n \u0103n \u1edf', 'source': 'auto_sync', 'is_reviewed': 1, 'receipt_url': None, 'transacted_at': datetime.datetime(2026, 4, 22, 8, 0)})
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u1ec1' in position 295: character maps to <undefined>
+Call stack:
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1014, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1043, in _bootstrap_inner
+    self.run()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\src\finance_svc\views\recurring.py", line 19, in create_recurring
+    return recurring_service.create_recurring(db, current_user.id, data)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\src\finance_svc\services\recurring_service.py", line 38, in create_recurring
+    db.commit()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2030, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1311, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1286, in _prepare_impl
+    self.session.flush()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4331, in flush
+    self._flush(objects)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4427, in _flush
+    flush_context.execute()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1048, in _emit_insert_statements
+    result = connection.execute(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1904, in _exec_single_context
+    self._log_info(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 187, in _log_info
+    self.engine.logger.info(message, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\log.py", line 159, in info
+    self.log(logging.INFO, msg, *args, **kwargs)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\log.py", line 210, in log
+    self.logger._log(level, msg, args, **kwargs)
+Message: '[%s] %r'
+Arguments: ('cached since 924.4s ago', {'id': '6fe6653a-3248-46ec-a9d5-b4b11c25160c', 'wallet_id': 'bbbbbbbb-0001-0001-0001-000000000001', 'category_id': 'cccccccc-0003-0001-0001-000000000001', 'type': 'income', 'amount': Decimal('11123334'), 'note': 'ti\u1ec1n ti\u1ec1n', 'frequency': 'monthly', 'start_date': datetime.date(2026, 4, 22), 'next_due_date': datetime.date(2026, 4, 22), 'execution_time': datetime.time(19, 4), 'end_date': None, 'notification_enabled': 0, 'remind_before_minutes': 30, 'last_notified_at': None, 'is_active': 1})
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u1ec1' in position 371: character maps to <undefined>
+Call stack:
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1014, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 1043, in _bootstrap_inner
+    self.run()
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\threading.py", line 994, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 93, in _worker
+    work_item.run()
+  File "C:\Users\Jelly\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\apscheduler\executors\base.py", line 131, in run_job
+    retval = job.func(*job.args, **job.kwargs)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\src\finance_svc\asgi.py", line 22, in _run_recurring_job
+    process_due_recurring(db)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\src\finance_svc\services\recurring_service.py", line 138, in process_due_recurring
+    return from_date + timedelta(weeks=1)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2030, in commit
+    trans.commit(_to_root=True)
+  File "<string>", line 2, in commit
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1311, in commit
+    self._prepare_impl()
+  File "<string>", line 2, in _prepare_impl
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1286, in _prepare_impl
+    self.session.flush()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4331, in flush
+    self._flush(objects)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 4427, in _flush
+    flush_context.execute()
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1048, in _emit_insert_statements
+    result = connection.execute(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1904, in _exec_single_context
+    self._log_info(
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 187, in _log_info
+    self.engine.logger.info(message, *arg, **kw)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\log.py", line 159, in info
+    self.log(logging.INFO, msg, *args, **kwargs)
+  File "E:\SupremeGithub\DoAnChuyenNganh_K22_DCT122C5\Main_Project\BE\.venv\Lib\site-packages\sqlalchemy\log.py", line 210, in log
+    self.logger._log(level, msg, args, **kwargs)
+Message: '[%s] %r'
+Arguments: ('cached since 180s ago', {'id': 'a2a8b7ec-2774-46a5-b26a-6723e7b83127', 'wallet_id': 'bbbbbbbb-0001-0001-0001-000000000001', 'category_id': 'cccccccc-0003-0001-0001-000000000001', 'recurring_id': '6fe6653a-3248-46ec-a9d5-b4b11c25160c', 'type': 'income', 'amount': Decimal('11123334.00'), 'currency': 'VND', 'note': 'ti\u1ec1n ti\u1ec1n', 'source': 'auto_sync', 'is_reviewed': 1, 'receipt_url': None, 'transacted_at': datetime.datetime(2026, 4, 22, 19, 4)})

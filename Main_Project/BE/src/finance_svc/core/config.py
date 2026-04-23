@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     veryfi_client_secret: str = ""
     veryfi_username: str = ""
     veryfi_api_key: str = ""
+    n8n_webhook_url: str = ""
+    n8n_ocr_webhook_url: str = ""
     app_env: str = "development"
     cors_origins: str = "http://localhost:5173"
 
