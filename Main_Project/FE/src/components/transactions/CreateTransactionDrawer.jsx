@@ -1,4 +1,4 @@
-import { Camera, Sparkles, X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import httpClient from "../../api/httpClient";
 import { useAppData } from "../../stores/AppDataContext";
@@ -15,10 +15,9 @@ const toDateTimeLocalValue = (date = new Date()) => {
 const emptyToast = { type: "", message: "" };
 
 function CreateTransactionDrawer({ open, onClose }) {
-  const { wallets, setWallets, categories, setTransactions } = useAppData();
+  const { wallets, setWallets, categories, setTransactions, refreshAll } = useAppData();
   const modalRef = useRef(null);
   const amountInputRef = useRef(null);
-  const ocrFileRef = useRef(null);
 
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
@@ -26,15 +25,12 @@ function CreateTransactionDrawer({ open, onClose }) {
   const [walletId, setWalletId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [dateTime, setDateTime] = useState(toDateTimeLocalValue());
-  const [note, setNote] = useState("");
-  const [attachment, setAttachment] = useState(null);
 
   const [categorySearch, setCategorySearch] = useState("");
   const [aiInput, setAiInput] = useState("");
   const [toast, setToast] = useState(emptyToast);
   const [submitting, setSubmitting] = useState(false);
   const [parsing, setParsing] = useState(false);
-  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -121,15 +117,11 @@ function CreateTransactionDrawer({ open, onClose }) {
       .filter(Boolean);
   }, [categories, categorySearch, type]);
 
-  useEffect(() => {
-    const firstParent = categoryTree[0];
-    const firstChild = firstParent?.children?.[0];
-    if (!categoryId || !categoryTree.some((parent) => parent.id === categoryId || parent.children.some((child) => child.id === categoryId))) {
-      setCategoryId(firstChild?.id || firstParent?.id || "");
-    }
-  }, [categoryTree, categoryId]);
-
   const selectedCategoryLabel = useMemo(() => {
+    if (!categoryId) {
+      return "Chưa chọn";
+    }
+
     for (const parent of categories) {
       if (parent.id === categoryId) {
         return parent.name;
@@ -141,7 +133,7 @@ function CreateTransactionDrawer({ open, onClose }) {
       }
     }
 
-    return "Chọn danh mục";
+    return "Chưa chọn";
   }, [categories, categoryId]);
 
   const formattedAmount = useMemo(() => {
@@ -156,10 +148,9 @@ function CreateTransactionDrawer({ open, onClose }) {
   const resetForNext = () => {
     setAmount("");
     setName("");
-    setNote("");
-    setAttachment(null);
     setAiInput("");
     setCategorySearch("");
+    setCategoryId("");
   };
 
   const applyTransactionToLocalStore = (transaction) => {
@@ -186,8 +177,6 @@ function CreateTransactionDrawer({ open, onClose }) {
     wallet_id: walletId,
     category_id: categoryId,
     transacted_at: new Date(dateTime).toISOString(),
-    note,
-    receipt_url: attachment ? `uploaded://${attachment.name}` : null,
     source: "manual",
     is_reviewed: true,
   });
@@ -199,7 +188,7 @@ function CreateTransactionDrawer({ open, onClose }) {
     return {
       id: body.id || `tx_${Date.now()}`,
       name: body.name || payload.name || "Giao dịch mới",
-      description: body.note || payload.note || "",
+      description: body.name || payload.name || "",
       date: transactedAt,
       transacted_at: transactedAt,
       amount: body.amount || payload.amount,
@@ -208,7 +197,6 @@ function CreateTransactionDrawer({ open, onClose }) {
       categoryId: body.category_id || payload.category_id,
       source: body.source || "manual",
       is_reviewed: body.is_reviewed ?? true,
-      receipt_url: body.receipt_url || payload.receipt_url,
     };
   };
 
@@ -226,8 +214,8 @@ function CreateTransactionDrawer({ open, onClose }) {
       const transaction = normalizeTransaction(response.data, payload);
       applyTransactionToLocalStore(transaction);
       setToast({ type: "success", message: "Đã tạo giao dịch thành công." });
+      await refreshAll();
     } catch (error) {
-      // Fallback local create when API endpoint is unavailable in local frontend-only mode.
       if (error?.response?.status === 404) {
         const localTransaction = normalizeTransaction({}, payload);
         applyTransactionToLocalStore(localTransaction);
@@ -278,55 +266,12 @@ function CreateTransactionDrawer({ open, onClose }) {
       if (parsed.name) {
         setName(parsed.name);
       }
-      if (parsed.note || parsed.vendor) {
-        setNote(parsed.note || parsed.vendor);
-      }
 
       setToast({ type: "success", message: "Đã phân tích nội dung AI, vui lòng kiểm tra lại trước khi lưu." });
     } catch (error) {
       setToast({ type: "error", message: error?.response?.data?.detail || "Không thể phân tích bằng AI." });
     } finally {
       setParsing(false);
-    }
-  };
-
-  const handleOcrReceipt = async (file) => {
-    if (!file) {
-      return;
-    }
-
-    try {
-      setScanning(true);
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await httpClient.post("/api/ai/ocr-receipt", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      const parsed = response.data || {};
-      setAttachment(file);
-
-      if (parsed.amount) {
-        setAmount(String(parsed.amount));
-      }
-      if (parsed.transacted_at) {
-        setDateTime(toDateTimeLocalValue(new Date(parsed.transacted_at)));
-      }
-      if (parsed.name) {
-        setName(parsed.name);
-      }
-      if (parsed.note || parsed.vendor) {
-        setNote(parsed.note || parsed.vendor);
-      }
-      if (parsed.category_id) {
-        setCategoryId(parsed.category_id);
-      }
-
-      setToast({ type: "success", message: "Đã quét hóa đơn, hãy xác nhận thông tin trước khi lưu." });
-    } catch (error) {
-      setToast({ type: "error", message: error?.response?.data?.detail || "Không thể OCR hóa đơn." });
-    } finally {
-      setScanning(false);
     }
   };
 
@@ -380,24 +325,6 @@ function CreateTransactionDrawer({ open, onClose }) {
                     {parsing ? "Đang parse" : "Parse"}
                   </button>
                 </div>
-
-                <div>
-                  <input
-                    ref={ocrFileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => handleOcrReceipt(event.target.files?.[0])}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => ocrFileRef.current?.click()}
-                    disabled={scanning}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed"
-                  >
-                    <Camera className="h-4 w-4" /> {scanning ? "Đang OCR..." : "OCR hóa đơn"}
-                  </button>
-                </div>
               </div>
             </section>
 
@@ -439,15 +366,40 @@ function CreateTransactionDrawer({ open, onClose }) {
               </div>
 
               <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">Tên giao dịch (Required)</span>
-                <input
-                  type="text"
+                <span className="mb-1 block text-sm font-medium text-slate-700">Nội dung giao dịch</span>
+                <select
                   value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Ví dụ: Ăn trưa, Thanh toán điện..."
-                  required
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                />
+                  onChange={(event) => {
+                    const val = event.target.value;
+                    if (val === "Khác") {
+                      setName("");
+                    } else {
+                      setName(val);
+                    }
+                  }}
+                  className="mb-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                >
+                  <option value="">-- Chọn nội dung --</option>
+                  <option value="Ăn uống">Ăn uống</option>
+                  <option value="Di chuyển">Di chuyển</option>
+                  <option value="Mua sắm">Mua sắm</option>
+                  <option value="Giải trí">Giải trí</option>
+                  <option value="Y tế">Y tế</option>
+                  <option value="Hóa đơn">Hóa đơn</option>
+                  <option value="Nạp tiền">Nạp tiền</option>
+                  <option value="Lương">Lương</option>
+                  <option value="Chuyển khoản">Chuyển khoản</option>
+                  <option value="Khác">Khác (nhập tùy ý)</option>
+                </select>
+                {name && !["Ăn uống","Di chuyển","Mua sắm","Giải trí","Y tế","Hóa đơn","Nạp tiền","Lương","Chuyển khoản"].includes(name) && (
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Nhập nội dung tùy ý..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                  />
+                )}
               </label>
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -516,28 +468,8 @@ function CreateTransactionDrawer({ open, onClose }) {
                     </div>
                     <p className="mt-1 text-xs text-slate-500">Đã chọn: {selectedCategoryLabel}</p>
                   </div>
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">Ghi chú chi tiết (Optional)</span>
-                    <textarea
-                      value={note}
-                      onChange={(event) => setNote(event.target.value)}
-                      rows={2}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                    />
-                  </label>
                 </div>
               </div>
-
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">Đính kèm hóa đơn</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => setAttachment(event.target.files?.[0] || null)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none"
-                />
-              </label>
             </section>
           </div>
 
