@@ -1,0 +1,20 @@
+Chi tiết chức năng tạo giao dịch:
+    -Giao dịch định kỳ: 
+        . Chưa cập nhật reload lại trang để xem thông tin ngay sau khi tạo giao dịch khiến trang không liên tục
+    -Giao dịch thường:
+        . Chưa sửa đặt tên giao dịch không còn là trường bắt buộc, bỏ trường ghi chú chi tiết, thay trường tên giao dịch thành mô tả giao dịch trong form nhập thêm giao dịch và bảng lịch sử giao dịch 
+        . Vẫn còn phần đính kèm hóa đơn trong thêm giao dịch, nên bỏ đi
+Chi tiết chức năng thông báo:
+    -Thông báo định kỳ:
+        . Khi thông báo trong kỳ hạn diễn ra thì thông báo cũ (tức là bao gồm thông báo nhắc) không bị mất đi khiến cho kỳ hạn của người dùng có thể có khả năng trả 2 lần vào cùng 1 kỳ. Nên xử lý nếu người dùng đã thanh toán hoặc hủy 1 trong 2 thông báo nhắc nhở hoặc thông báo đến kỳ thì chỉ cần xử lý 1 là sẽ hoàn thành kỳ đó không xử lý nữa
+Chi tiết chức năng quản lý giao dịch
+    -Lọc giao dịch theo danh mục:
+        . Vẫn hiện tất cả danh mục cha và con, nên có cách xử lý vì hiện lên lịch sử cần rõ ràng và đủ chi tiết
+Chi tiết chức năng thống kê chi tiêu:
+    -Lược đồ hình tròn khi mở rộng chỉ ghi nhận các danh mục con, danh mục cha bị đánh là "Khác", nên có cách xử lý khác để vẫn rõ ràng hơn nó là thuộc danh mục gì
+Chi tiết chức năng Trợ lý AI:
+    -Chatbot Jelly khốn khổ:
+        .Nên nhận diện tin nhắn có hình ảnh của người dùng có phải là hóa đơn không hoặc nhận diện người dùng có yêu cầu thêm giao dịch gì không để AI tạo ra nút thêm giao dịch ngay trong khung chat (2 nút cụ thể: Tạo giao dịch thu, tạo giao dịch chi) và tự động điền vào giao dịch đó đợi người dùng xác nhận. Hoặc AI chỉ đưa ra thông tin xác thực và đưa ra lựa chọn tạo giao dịch hoặc hủy cho người dùng thôi
+    -OCR Hóa đơn:
+        .Thêm nút chức năng để người dùng chọn dùng camera hay thêm vào hình ảnh sẵn có
+    * Thêm các test case cho các prompt của người dùng
