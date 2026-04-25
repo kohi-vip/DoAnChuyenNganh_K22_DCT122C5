@@ -1,10 +1,21 @@
 import math
 import calendar
-from datetime import date, datetime, timedelta
+import uuid
+from datetime import date, datetime, timedelta, time
+from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
 from finance_svc.models.notification import Notification
 from finance_svc.models.recurring_transaction import RecurringTransaction
 from finance_svc.models.transaction import Transaction
+from finance_svc.models.wallet import Wallet
+
+
+VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def _vn_now() -> datetime:
+    return datetime.now(VN_TZ).replace(tzinfo=None)
 
 
 def list_notifications(
@@ -44,7 +55,7 @@ def mark_as_read(db: Session, user_id: str, notification_id: str) -> Notificatio
     if not notification:
         return None
     notification.is_read = True
-    notification.read_at = datetime.now()
+    notification.read_at = _vn_now()
     db.commit()
     db.refresh(notification)
     notification.is_paid = _is_notification_paid(db, notification)
@@ -73,7 +84,7 @@ def mark_all_as_read(db: Session, user_id: str) -> int:
         .filter(Notification.user_id == user_id, Notification.is_read == False)
         .update({
             Notification.is_read: True,
-            Notification.read_at: datetime.now(),
+            Notification.read_at: _vn_now(),
         })
     )
     db.commit()
@@ -133,3 +144,66 @@ def _next_date(from_date: date, frequency: str) -> date:
             return date(year, 2, 28)
         return date(year, from_date.month, from_date.day)
     return from_date + timedelta(days=1)
+
+
+def handle_notification_action(db: Session, user_id: str, notification_id: str, action: str) -> dict:
+    notification = (
+        db.query(Notification)
+        .filter(Notification.id == notification_id, Notification.user_id == user_id)
+        .first()
+    )
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+
+    if not notification.recurring_id:
+        raise HTTPException(status_code=422, detail="Notification has no associated recurring transaction")
+
+    recurring = db.query(RecurringTransaction).filter(RecurringTransaction.id == notification.recurring_id).first()
+    if not recurring:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+
+    wallet = db.query(Wallet).filter(Wallet.id == recurring.wallet_id).with_for_update().first()
+    if not wallet:
+        raise HTTPException(status_code=404, detail="Wallet not found")
+
+    result = {"action": action, "notification_id": notification_id}
+
+    if action == "pay":
+        txn = Transaction(
+            id=str(uuid.uuid4()),
+            wallet_id=recurring.wallet_id,
+            category_id=recurring.category_id,
+            recurring_id=recurring.id,
+            type=recurring.type,
+            amount=recurring.amount,
+            note=recurring.note,
+            transacted_at=_vn_now(),
+            source="manual",
+            is_reviewed=True,
+        )
+        db.add(txn)
+        if recurring.type == "income":
+            wallet.balance += recurring.amount
+        else:
+            wallet.balance -= recurring.amount
+        result["transaction_id"] = txn.id
+
+    elif action == "skip":
+        pass
+
+    elif action == "dismiss":
+        if notification.notification_type != "reminder":
+            raise HTTPException(status_code=422, detail="Dismiss chỉ áp dụng cho thông báo reminder")
+
+    else:
+        raise HTTPException(status_code=422, detail=f"Invalid action: {action}")
+
+    if action in ["pay", "skip"]:
+        recurring.next_due_date = _next_date(recurring.next_due_date, recurring.frequency)
+        if recurring.end_date and recurring.next_due_date > recurring.end_date:
+            recurring.is_active = False
+
+    db.delete(notification)
+    db.commit()
+
+    return result

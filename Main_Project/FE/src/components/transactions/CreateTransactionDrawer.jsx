@@ -266,6 +266,12 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
     );
   };
 
+  const normalizeDateTime = (value) => {
+    if (!value) return value;
+    if (value.length === 16) return `${value}:00`;
+    return value.slice(0, 19);
+  };
+
   const buildTransactionPayload = () => ({
     name: name.trim(),
     amount: Number(amount),
@@ -273,7 +279,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
     wallet_id: walletId,
     category_id: categoryId,
     recurring_id: recurringId || null,
-    transacted_at: new Date(dateTime).toISOString(),
+    transacted_at: normalizeDateTime(dateTime),
     note,
     receipt_url: attachment ? `uploaded://${attachment.name}` : null,
   });
@@ -352,7 +358,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
         setToast({ type: "success", message: "Đã tạo giao dịch định kỳ thành công." });
       }
     } catch (error) {
-      // Fallback local create when API endpoint is unavailable in local frontend-only mode.
       if (isTransactionMode && error?.response?.status === 404) {
         const localTransaction = normalizeTransaction({}, payload);
         applyTransactionToLocalStore(localTransaction);

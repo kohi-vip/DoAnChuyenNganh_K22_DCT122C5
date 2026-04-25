@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useOutletContext } from "react-router-dom";
 import {
   fetchRecurringTemplates,
   fetchNotifications,
   markAllNotificationsAsRead,
   markNotificationAsRead,
   markNotificationAsUnread,
-  updateRecurringTemplate,
+  runNotificationAction,
 } from "../api/financeApi";
 import NotificationDialog from "../components/common/NotificationDialog";
 
@@ -25,7 +24,6 @@ const formatDateTime = (value) => {
 };
 
 function NotificationsPage() {
-  const { openCreateTransaction } = useOutletContext() || {};
   const [items, setItems] = useState([]);
   const [recurringMap, setRecurringMap] = useState({});
   const [loading, setLoading] = useState(false);
@@ -34,8 +32,7 @@ function NotificationsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [readFilter, setReadFilter] = useState("all");
   const [pendingReadId, setPendingReadId] = useState("");
-  const [pendingPayId, setPendingPayId] = useState("");
-  const [pendingCancelId, setPendingCancelId] = useState("");
+  const [pendingActionKey, setPendingActionKey] = useState("");
   const [feedback, setFeedback] = useState(null);
 
   const loadNotifications = useCallback(async () => {
@@ -141,121 +138,51 @@ function NotificationsPage() {
     }
   };
 
-  const handleOpenPaymentForm = async (item) => {
-    if (!item.recurringId || item.isPaid || pendingPayId === item.id) {
+  const handleNotificationAction = async (item, action) => {
+    const actionKey = `${item.id}:${action}`;
+    if (!item.recurringId || item.isPaid || pendingActionKey === actionKey) {
       return;
     }
 
-    const recurring = recurringMap[item.recurringId];
-    if (!recurring) {
-      setFeedback({
-        type: "error",
-        message: "Không tìm thấy mẫu giao dịch định kỳ để điền sẵn form.",
-      });
-      return;
-    }
-
-    if (!recurring.isActive) {
-      setFeedback({
-        type: "error",
-        message: "Giao dịch định kỳ này đã bị hủy, không thể thanh toán.",
-      });
-      return;
-    }
-
-    if (typeof openCreateTransaction !== "function") {
-      setFeedback({
-        type: "error",
-        message: "Không thể mở form giao dịch ở màn hình hiện tại.",
-      });
-      return;
-    }
-
-    try {
-      setPendingPayId(item.id);
-      openCreateTransaction({
-        amount: recurring.amount,
-        type: recurring.type,
-        wallet_id: recurring.walletId,
-        category_id: recurring.categoryId,
-        recurring_id: recurring.id,
-        note: recurring.note || item.title,
-        transacted_at: new Date().toISOString(),
-        onSuccess: () => {
-          const paidRecurringId = item.recurringId;
-          setItems((current) =>
-            current.map((currentItem) =>
-              currentItem.recurringId === paidRecurringId
-                ? { ...currentItem, isPaid: true }
-                : currentItem
-            )
-          );
-          loadNotifications();
-          loadRecurringTemplates();
-        },
-      });
-      if (!item.isRead) {
-        await markNotificationAsRead(item.id);
-        setItems((current) =>
-          current.map((currentItem) =>
-            currentItem.id === item.id
-              ? { ...currentItem, isRead: true, readAt: new Date().toISOString() }
-              : currentItem
-          )
-        );
+    if (action === "skip") {
+      const confirmed = window.confirm("Bạn có chắc muốn hủy thanh toán kỳ này không?");
+      if (!confirmed) {
+        return;
       }
-    } finally {
-      setPendingPayId("");
-    }
-  };
-
-  const handleCancelRecurringFromNotification = async (item) => {
-    if (!item.recurringId || item.isPaid || pendingCancelId === item.id) {
-      return;
     }
 
     const recurring = recurringMap[item.recurringId];
     if (!recurring) {
       setFeedback({
         type: "error",
-        message: "Không tìm thấy mẫu giao dịch định kỳ để hủy.",
+        message: "Không tìm thấy mẫu giao dịch định kỳ.",
       });
       return;
     }
 
-    if (!recurring.isActive) {
-      setFeedback({ type: "success", message: "Giao dịch này đã được hủy trước đó." });
-      return;
-    }
-
-    const confirmed = window.confirm("Bạn có muốn hủy bỏ giao dịch định kỳ này không?");
-    if (!confirmed) {
+    if (!recurring.isActive && action !== "dismiss") {
+      setFeedback({
+        type: "error",
+        message: "Giao dịch định kỳ này đã bị hủy, không thể thực hiện thao tác.",
+      });
       return;
     }
 
     try {
-      setPendingCancelId(item.id);
-      const updated = await updateRecurringTemplate(recurring.id, {
-        categoryId: recurring.categoryId,
-        amount: recurring.amount,
-        note: recurring.note,
-        frequency: recurring.frequency,
-        next_due_date: recurring.nextDueDate,
-        end_date: recurring.endDate,
-        is_active: false,
-      });
-      setRecurringMap((current) => ({
-        ...current,
-        [updated.id]: updated,
-      }));
-      setFeedback({ type: "success", message: "Đã hủy giao dịch định kỳ từ thông báo." });
+      setPendingActionKey(actionKey);
+      await runNotificationAction(item.id, action);
+      setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
+      await Promise.all([loadNotifications(), loadRecurringTemplates()]);
+
+      const actionLabel = action === "pay" ? "thanh toán" : action === "skip" ? "hủy kỳ này" : "dismiss";
+      setFeedback({ type: "success", message: `Đã ${actionLabel} thành công.` });
     } catch (error) {
       setFeedback({
         type: "error",
-        message: error?.response?.data?.detail || "Không thể hủy giao dịch định kỳ.",
+        message: error?.response?.data?.detail || "Không thể thực hiện thao tác thông báo.",
       });
     } finally {
-      setPendingCancelId("");
+      setPendingActionKey("");
     }
   };
 
@@ -392,19 +319,19 @@ function NotificationsPage() {
 
                         <button
                           type="button"
-                          onClick={() => handleOpenPaymentForm(item)}
+                          onClick={() => handleNotificationAction(item, "pay")}
                           disabled={
                             !item.recurringId ||
                             item.isPaid ||
-                            pendingPayId === item.id ||
+                            pendingActionKey === `${item.id}:pay` ||
                             !recurringMap[item.recurringId]?.isActive
                           }
                           className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {item.isPaid
                             ? "Đã giao dịch"
-                            : pendingPayId === item.id
-                              ? "Đang mở form..."
+                            : pendingActionKey === `${item.id}:pay`
+                              ? "Đang xử lý..."
                               : !recurringMap[item.recurringId]?.isActive
                                 ? "Đã hủy"
                                 : "Thanh toán"}
@@ -412,17 +339,28 @@ function NotificationsPage() {
 
                         <button
                           type="button"
-                          onClick={() => handleCancelRecurringFromNotification(item)}
+                          onClick={() => handleNotificationAction(item, "skip")}
                           disabled={
                             !item.recurringId ||
                             item.isPaid ||
-                            pendingCancelId === item.id ||
+                            pendingActionKey === `${item.id}:skip` ||
                             !recurringMap[item.recurringId]?.isActive
                           }
                           className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {pendingCancelId === item.id ? "Đang hủy..." : "Hủy giao dịch"}
+                          {pendingActionKey === `${item.id}:skip` ? "Đang xử lý..." : "Hủy"}
                         </button>
+
+                        {item.notificationType === "reminder" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleNotificationAction(item, "dismiss")}
+                            disabled={!item.recurringId || item.isPaid || pendingActionKey === `${item.id}:dismiss`}
+                            className="rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {pendingActionKey === `${item.id}:dismiss` ? "Đang xử lý..." : "Dismiss"}
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

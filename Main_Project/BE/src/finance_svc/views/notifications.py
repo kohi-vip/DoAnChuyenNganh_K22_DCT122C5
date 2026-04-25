@@ -7,6 +7,7 @@ from finance_svc.schemas.notification import (
     NotificationListResponse,
     NotificationResponse,
     UnreadCountResponse,
+    NotificationActionRequest,
 )
 from finance_svc.services import notification_service
 
@@ -76,3 +77,18 @@ def mark_all_notifications_read(
 ):
     notification_service.mark_all_as_read(db, current_user.id)
     return {"unread_count": 0}
+
+
+@router.post("/{notification_id}/action")
+def handle_notification_action(
+    notification_id: str,
+    request: NotificationActionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return notification_service.handle_notification_action(
+        db,
+        current_user.id,
+        notification_id,
+        request.action,
+    )

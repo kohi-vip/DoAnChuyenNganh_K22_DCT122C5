@@ -268,11 +268,11 @@ export const markAllNotificationsAsRead = async () => {
   return Number(res.data?.unread_count ?? 0);
 };
 
-// ─────────────────────────────────────────────
-// AI / JELLY CHATBOT
-// ─────────────────────────────────────────────
+export const runNotificationAction = async (id, action) => {
+  const res = await httpClient.post(`/api/notifications/${id}/action`, { action });
+  return res.data;
+};
 
-/** Chuyển File object sang base64 thuần (không có data URL prefix) */
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();

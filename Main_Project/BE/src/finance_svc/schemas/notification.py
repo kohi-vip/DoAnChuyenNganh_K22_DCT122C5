@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from pydantic import BaseModel
 
 
@@ -28,3 +29,7 @@ class NotificationListResponse(BaseModel):
 
 class UnreadCountResponse(BaseModel):
     unread_count: int
+
+
+class NotificationActionRequest(BaseModel):
+    action: Literal["pay", "skip", "dismiss"]

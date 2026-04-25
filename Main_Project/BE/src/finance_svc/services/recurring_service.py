@@ -1,5 +1,6 @@
 import calendar
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from finance_svc.models.recurring_transaction import RecurringTransaction
@@ -8,6 +9,13 @@ from finance_svc.models.transaction import Transaction
 from finance_svc.models.notification import Notification
 from finance_svc.schemas.recurring import RecurringCreate, RecurringUpdate, RecurringResponse
 import uuid
+
+
+VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def _vn_now() -> datetime:
+    return datetime.now(VN_TZ).replace(tzinfo=None)
 
 
 def create_recurring(db: Session, user_id: str, data: RecurringCreate) -> RecurringResponse:
@@ -76,7 +84,7 @@ def pay_now_recurring(db: Session, user_id: str, rec_id: str) -> RecurringRespon
     if not rec.is_active:
         raise HTTPException(status_code=422, detail="Recurring transaction is not active")
 
-    today = date.today()
+    today = _vn_now().date()
     if rec.end_date and today > rec.end_date:
         raise HTTPException(status_code=422, detail="Recurring transaction has ended")
 
@@ -103,8 +111,7 @@ def delete_recurring(db: Session, user_id: str, rec_id: str):
 
 
 def process_due_recurring(db: Session):
-    # Called by scheduler every minute to process reminders and due recurring transactions.
-    now = datetime.now()
+    now = _vn_now()
     today = now.date()
     _queue_due_reminders(db, now)
 
@@ -252,7 +259,7 @@ def _create_notification_if_absent(
             is_read=False,
         )
     )
-    rec.last_notified_at = datetime.now()
+    rec.last_notified_at = _vn_now()
 
 
 def _has_manual_payment_in_cycle(db: Session, rec: RecurringTransaction, due_at: datetime) -> bool:
@@ -275,7 +282,7 @@ def _normalize_legacy_fields(rec: RecurringTransaction) -> bool:
     changed = False
 
     if rec.start_date is None:
-        rec.start_date = rec.next_due_date or date.today()
+        rec.start_date = rec.next_due_date or _vn_now().date()
         changed = True
 
     if rec.execution_time is None:

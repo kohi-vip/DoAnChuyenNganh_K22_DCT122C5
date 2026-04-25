@@ -51,7 +51,7 @@ function TransactionEditModal({
       return;
     }
 
-    const nextTimestamp = new Date(formData.date).toISOString();
+    const nextTimestamp = `${formData.date}T00:00:00`;
 
     onSave({
       ...formData,
