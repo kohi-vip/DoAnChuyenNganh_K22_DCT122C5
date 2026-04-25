@@ -21,7 +21,7 @@ const toDateValue = (date = new Date()) => {
 
 const emptyToast = { type: "", message: "" };
 
-function CreateTransactionDrawer({ open, onClose }) {
+function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
   const { wallets, setWallets, categories, setTransactions, refreshAll } = useAppData();
   const modalRef = useRef(null);
   const amountInputRef = useRef(null);
