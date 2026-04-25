@@ -1,0 +1,261 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "contextWindowLength": 3
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        80,
+        880
+      ],
+      "id": "4248e8e6-20e3-48a0-95e8-99fe8f384c2c",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "ROLE: Chuyên viên tư vấn tài chính Jelly\nBạn là chuyên viên tư vấn tài chính cá nhân. Bắt buộc sử dụng 100% tiếng Việt trong mọi câu trả lời và mô tả.\n\nMỤC TIÊU\n\nHỗ trợ người dùng quản lý chi tiêu, phân tích hóa đơn, theo dõi ngân sách, và đưa khuyến nghị tài chính cá nhân.\nTrả lời ngắn gọn, rõ ràng, thực tế, có thể áp dụng ngay.\nKhông bịa dữ liệu. Nếu thiếu thông tin, phải nói rõ và hỏi thêm.\nQUY TẮC DÙNG TOOL OCR (HÓA ĐƠN)\n\nNếu người dùng có gửi ảnh hoặc yêu cầu đọc hóa đơn/chứng từ, bắt buộc gọi tool Call OCR trước khi trả lời.\nNếu không có ảnh hóa đơn, không gọi tool OCR.\nSau khi tool trả về:\nNếu ocrStatus = ok và có ocrText: dùng ocrText làm nguồn chính để phân tích.\nNếu ocrStatus = error hoặc ocrText rỗng: thông báo không đọc rõ hóa đơn, đề nghị gửi lại ảnh rõ hơn, rồi vẫn tư vấn phần có thể từ câu hỏi người dùng.\nKhông được suy đoán nội dung hóa đơn khi chưa có kết quả OCR hợp lệ.\nPHONG CÁCH TƯ VẤN\n\nLuôn trả lời bằng tiếng Việt tự nhiên, chuyên nghiệp, dễ hiểu.\nKhi phân tích chi tiêu, ưu tiên nêu:\nTổng chi tiêu\nNhóm chi tiêu chính\nKhoản bất thường\nGợi ý tiết kiệm cụ thể\nNếu có số liệu từ hóa đơn, trình bày theo từng ý rõ ràng.\nAN TOÀN VÀ ĐỘ TIN CẬY\n\nKhông khẳng định chắc chắn khi dữ liệu OCR chưa rõ.\nNếu dữ liệu thiếu hoặc mờ, nêu mức độ chắc chắn và phần cần xác nhận.\nKhông đưa lời khuyên tài chính rủi ro cao khi chưa đủ dữ liệu.\n\n###### LƯU Ý ######################\nnếu người dùng nhắn jelly và kèm theo câu hỏi, hãy trả lời toàn bộ, không quan tâm đó là câu hỏi gì",
+          "enableStreaming": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -64,
+        640
+      ],
+      "id": "0f5e7411-3a7f-4c71-9587-abf4eda9648a",
+      "name": "Information Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        880
+      ],
+      "id": "116631fc-f2ce-480c-ae4e-b0db5ad083e1",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "<REDACTED_GROQ_CREDENTIAL_ID>",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.veryfi.com/api/v8/partner/documents/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CLIENT-ID",
+              "value": "<REDACTED_CLIENT_ID>"
+            },
+            {
+              "name": "AUTHORIZATION",
+              "value": "apikey <REDACTED_API_KEY>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"file_name\": \"={{ $json.image.name || 'upload.jpg' }}\",\n  \"file_data\": \"={{ $json.image.data }}\",\n  \"categories\": [\"other\"]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -464,
+        752
+      ],
+      "id": "370899fc-c0a0-4585-a30a-11bab1930e49",
+      "name": "OCR_tool"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d45231ef-2b44-45a2-8691-c9097da23dd6",
+              "leftValue": "={{ $json.hasImage }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -736,
+        656
+      ],
+      "id": "65ef5eab-89f2-4f78-b9d1-ee5bb6b126b2",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $json;\n\n// Luon dam bao chatInput la chuoi\nlet chatInput = String(src.chatInput ?? \"\").trim();\n\n// Thu parse neu chatInput la JSON string\nlet parsed = null;\ntry {\n  if (chatInput.startsWith(\"{\") && chatInput.endsWith(\"}\")) {\n    parsed = JSON.parse(chatInput);\n  }\n} catch (_) {\n  parsed = null;\n}\n\n// Lay image tu root, neu khong co thi lay tu parsed\nconst imageObj = src.image ?? parsed?.image ?? null;\nconst rawData = String(imageObj?.data ?? \"\").trim();\nconst base64 = rawData.replace(/^data:[^;]+;base64,/, \"\");\n\n// Neu parsed co question rieng thi uu tien\nif (parsed?.question) {\n  chatInput = String(parsed.question).trim();\n}\n\nconst hasImage = base64.length > 0;\n\nreturn [\n  {\n    json: {\n      action: src.action ?? \"\",\n      sessionId: src.sessionId ?? src.sessionid ?? \"\",\n      chatInput,\n      hasImage,\n      image: hasImage\n        ? {\n            name: imageObj?.name ?? \"upload.jpg\",\n            mimeType: imageObj?.mimeType ?? \"image/jpeg\",\n            data: base64,\n          }\n        : null,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        656
+      ],
+      "id": "836e2a3f-8705-4379-9725-02bed96a192b",
+      "name": "text and image1"
+    },
+    {
+      "parameters": {
+        "public": true,
+        "mode": "webhook",
+        "options": {
+          "responseMode": "streaming"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1168,
+        656
+      ],
+      "id": "91d15842-deba-4337-a92d-4a6f4ff3f245",
+      "name": "When chat message received",
+      "webhookId": "<REDACTED_WEBHOOK_ID>"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst data = item?.json || {};\n\n// Nguon OCR (output tu OCR tool)\nconst vf = data;\n\n// ChatInput nen duoc giu lai tu cac node truoc trong cung item\nconst originalChat = data.chatInput || \"\";\n\n// 1) Text OCR\nconst baseText =\n  (typeof vf.ocr_text === \"string\" && vf.ocr_text.trim()) ||\n  (typeof vf.raw_text === \"string\" && vf.raw_text.trim()) ||\n  (typeof vf.text === \"string\" && vf.text.trim()) ||\n  \"\";\n\n// 2) Line items\nlet itemsText = \"\";\nif (Array.isArray(vf.line_items) && vf.line_items.length) {\n  itemsText = vf.line_items\n    .map((it, idx) => {\n      const desc = it.description || it.text || \"Muc khong ro\";\n      const qty = it.quantity ?? \"\";\n      const amount = it.total ?? it.price ?? \"\";\n      return `${idx + 1}. ${desc} | SL: ${qty} | Tien: ${amount}`;\n    })\n    .join(\"\\n\");\n}\n\nconst ocrText = [baseText, itemsText].filter(Boolean).join(\"\\n\").trim();\nconst ocrStatus = ocrText ? \"ok\" : \"empty\";\n\nconst vendor = (vf.vendor && (vf.vendor.name || vf.vendor)) || vf.vendor_name || \"\";\nconst date = vf.date || vf.invoice_date || \"\";\nconst total = vf.total ?? vf.grand_total ?? \"\";\n\nconst agentInput = [\n  `Cau hoi nguoi dung: ${originalChat}`,\n  `Da gui anh: Co`,\n  `OCR status: ${ocrStatus}`,\n  `Vendor: ${vendor}`,\n  `Date: ${date}`,\n  `Total: ${total}`,\n  \"\",\n  \"Noi dung OCR:\",\n  ocrText || \"Khong trich xuat duoc noi dung ro rang.\"\n].join(\"\\n\");\n\nreturn [\n  {\n    json: {\n      ...data,\n      hasImage: true,\n      ocrStatus,\n      ocrText,\n      vendor,\n      date,\n      total,\n      chatInput: agentInput,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        752
+      ],
+      "id": "99409a09-5bdb-412e-8965-e306292ff0ec",
+      "name": "parse OCR to text"
+    }
+  ],
+  "connections": {
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Information Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Information Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR_tool": {
+      "main": [
+        [
+          {
+            "node": "parse OCR to text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Information Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OCR_tool",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "text and image1": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "text and image1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse OCR to text": {
+      "main": [
+        [
+          {
+            "node": "Information Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "<REDACTED_INSTANCE_ID>"
+  }
+}

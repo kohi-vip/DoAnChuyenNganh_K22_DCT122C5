@@ -12,6 +12,13 @@ const toDateTimeLocalValue = (date = new Date()) => {
   return `${year}-${month}-${day}T${hour}:${minute}`;
 };
 
+const toDateValue = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const emptyToast = { type: "", message: "" };
 
 function CreateTransactionDrawer({ open, onClose }) {
@@ -19,15 +26,26 @@ function CreateTransactionDrawer({ open, onClose }) {
   const modalRef = useRef(null);
   const amountInputRef = useRef(null);
 
+  const [entryMode, setEntryMode] = useState("transaction");
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
   const [name, setName] = useState("");
   const [walletId, setWalletId] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [recurringId, setRecurringId] = useState("");
   const [dateTime, setDateTime] = useState(toDateTimeLocalValue());
+  const [frequency, setFrequency] = useState("monthly");
+  const [startDate, setStartDate] = useState(toDateValue());
+  const [executionTime, setExecutionTime] = useState("08:00");
+  const [nextDueDate, setNextDueDate] = useState(toDateValue());
+  const [endDate, setEndDate] = useState("");
+  const [noEndDateLimit, setNoEndDateLimit] = useState(true);
+  const [notificationEnabled, setNotificationEnabled] = useState(true);
+  const [remindBeforeMinutes, setRemindBeforeMinutes] = useState(30);
+  const [note, setNote] = useState("");
+  const [attachment, setAttachment] = useState(null);
 
   const [categorySearch, setCategorySearch] = useState("");
-  const [aiInput, setAiInput] = useState("");
   const [toast, setToast] = useState(emptyToast);
   const [submitting, setSubmitting] = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -43,6 +61,7 @@ function CreateTransactionDrawer({ open, onClose }) {
 
     setWalletId((current) => current || wallets[0]?.id || "");
     setDateTime((current) => current || toDateTimeLocalValue());
+    setNextDueDate((current) => current || toDateValue());
   }, [open, wallets]);
 
   useEffect(() => {
@@ -92,6 +111,75 @@ function CreateTransactionDrawer({ open, onClose }) {
     const timer = window.setTimeout(() => setToast(emptyToast), 2400);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  const findCategoryIdByName = (categoryName) => {
+    if (!categoryName) {
+      return "";
+    }
+
+    const normalized = categoryName.trim().toLowerCase();
+    for (const parent of categories) {
+      if ((parent.name || "").trim().toLowerCase() === normalized) {
+        return parent.id;
+      }
+
+      const child = (parent.children || []).find((item) => (item.name || "").trim().toLowerCase() === normalized);
+      if (child) {
+        return child.id;
+      }
+    }
+
+    return "";
+  };
+
+  useEffect(() => {
+    if (!open || !initialPrefill) {
+      return;
+    }
+
+    setEntryMode("transaction");
+
+    if (initialPrefill.recurring_id) {
+      setRecurringId(initialPrefill.recurring_id);
+    }
+
+    if (initialPrefill.amount) {
+      setAmount(String(initialPrefill.amount));
+    }
+    if (initialPrefill.type === "income" || initialPrefill.type === "expense") {
+      setType(initialPrefill.type);
+    }
+    if (initialPrefill.wallet_id) {
+      setWalletId(initialPrefill.wallet_id);
+    }
+
+    const prefillDate = initialPrefill.transacted_at || initialPrefill.date;
+    if (prefillDate) {
+      setDateTime(toDateTimeLocalValue(new Date(prefillDate)));
+    }
+
+    const prefillNote = initialPrefill.note || (initialPrefill.vendor ? `Hóa đơn ${initialPrefill.vendor}` : "");
+    if (prefillNote) {
+      setNote(prefillNote);
+      setName(prefillNote);
+    }
+
+    if (initialPrefill.category_id) {
+      setCategoryId(initialPrefill.category_id);
+    } else {
+      const matchedCategoryId = findCategoryIdByName(initialPrefill.suggested_category || initialPrefill.category);
+      if (matchedCategoryId) {
+        setCategoryId(matchedCategoryId);
+      }
+    }
+  }, [open, initialPrefill, categories]);
+
+  useEffect(() => {
+    if (!open || initialPrefill) {
+      return;
+    }
+    setRecurringId("");
+  }, [open, initialPrefill]);
 
   const categoryTree = useMemo(() => {
     const keyword = categorySearch.trim().toLowerCase();
@@ -148,9 +236,14 @@ function CreateTransactionDrawer({ open, onClose }) {
   const resetForNext = () => {
     setAmount("");
     setName("");
-    setAiInput("");
+    setNote("");
+    setRecurringId("");
+    setAttachment(null);
     setCategorySearch("");
-    setCategoryId("");
+    setDateTime(toDateTimeLocalValue());
+    setNextDueDate(toDateValue());
+    setEndDate("");
+    setNoEndDateLimit(true);
   };
 
   const applyTransactionToLocalStore = (transaction) => {
@@ -170,15 +263,37 @@ function CreateTransactionDrawer({ open, onClose }) {
     );
   };
 
-  const buildPayload = () => ({
+  const normalizeDateTime = (value) => {
+    if (!value) return value;
+    if (value.length === 16) return `${value}:00`;
+    return value.slice(0, 19);
+  };
+
+  const buildTransactionPayload = () => ({
     name: name.trim(),
     amount: Number(amount),
     type,
     wallet_id: walletId,
     category_id: categoryId,
-    transacted_at: new Date(dateTime).toISOString(),
-    source: "manual",
-    is_reviewed: true,
+    recurring_id: recurringId || null,
+    transacted_at: normalizeDateTime(dateTime),
+    note,
+    receipt_url: attachment ? `uploaded://${attachment.name}` : null,
+  });
+
+  const buildRecurringPayload = () => ({
+    wallet_id: walletId,
+    category_id: categoryId,
+    type,
+    amount: Number(amount),
+    note: (note || name || "").trim() || null,
+    frequency,
+    start_date: startDate,
+    execution_time: executionTime,
+    next_due_date: nextDueDate,
+    end_date: noEndDateLimit ? null : endDate || null,
+    notification_enabled: notificationEnabled,
+    remind_before_minutes: Number(remindBeforeMinutes),
   });
 
   const normalizeTransaction = (apiData, payload) => {
@@ -200,25 +315,51 @@ function CreateTransactionDrawer({ open, onClose }) {
     };
   };
 
-  const saveTransaction = async (keepOpen) => {
-    if (!name.trim() || !amount || Number(amount) <= 0 || !walletId || !categoryId || !dateTime) {
+  const saveEntry = async (keepOpen) => {
+    const isTransactionMode = entryMode === "transaction";
+
+    if (isTransactionMode && (!name.trim() || !amount || Number(amount) <= 0 || !walletId || !categoryId || !dateTime)) {
       setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
       return;
     }
 
-    const payload = buildPayload();
+    if (!isTransactionMode && (!amount || Number(amount) <= 0 || !walletId || !categoryId || !frequency || !nextDueDate)) {
+      setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
+      return;
+    }
+
+    if (!isTransactionMode && startDate && nextDueDate && nextDueDate < startDate) {
+      setToast({
+        type: "error",
+        message: "Ngày bắt đầu kỳ đầu phải lớn hơn hoặc bằng ngày bắt đầu.",
+      });
+      return;
+    }
+
+    const payload = isTransactionMode ? buildTransactionPayload() : buildRecurringPayload();
+    const endpoint = isTransactionMode ? "/api/transactions" : "/api/recurring";
 
     try {
       setSubmitting(true);
-      const response = await httpClient.post("/api/transactions", payload);
-      const transaction = normalizeTransaction(response.data, payload);
-      applyTransactionToLocalStore(transaction);
-      setToast({ type: "success", message: "Đã tạo giao dịch thành công." });
-      await refreshAll();
+      const response = await httpClient.post(endpoint, payload);
+
+      if (isTransactionMode) {
+        const transaction = normalizeTransaction(response.data, payload);
+        applyTransactionToLocalStore(transaction);
+        if (typeof initialPrefill?.onSuccess === "function") {
+          initialPrefill.onSuccess(transaction);
+        }
+        setToast({ type: "success", message: "Đã tạo giao dịch thành công." });
+      } else {
+        setToast({ type: "success", message: "Đã tạo giao dịch định kỳ thành công." });
+      }
     } catch (error) {
-      if (error?.response?.status === 404) {
+      if (isTransactionMode && error?.response?.status === 404) {
         const localTransaction = normalizeTransaction({}, payload);
         applyTransactionToLocalStore(localTransaction);
+        if (typeof initialPrefill?.onSuccess === "function") {
+          initialPrefill.onSuccess(localTransaction);
+        }
         setToast({ type: "success", message: "Đã tạo giao dịch (local mode)." });
       } else {
         setToast({ type: "error", message: error?.response?.data?.detail || "Không thể tạo giao dịch." });
@@ -303,30 +444,29 @@ function CreateTransactionDrawer({ open, onClose }) {
             </button>
           </div>
 
+          <div className="px-5 pt-3">
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setEntryMode("transaction")}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                  entryMode === "transaction" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"
+                }`}
+              >
+                Giao dịch thường
+              </button>
+              <button
+                type="button"
+                onClick={() => setEntryMode("recurring")}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                  entryMode === "recurring" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"
+                }`}
+              >
+                Giao dịch định kỳ
+              </button>
+            </div>
+          </div>
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-            <section className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <Sparkles className="h-4 w-4 text-blue-600" /> AI Shortcut
-              </div>
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    value={aiInput}
-                    onChange={(event) => setAiInput(event.target.value)}
-                    placeholder="Nhập bằng giọng nói hoặc văn bản..."
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleParseNlp}
-                    disabled={parsing}
-                    className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                  >
-                    {parsing ? "Đang parse" : "Parse"}
-                  </button>
-                </div>
-              </div>
-            </section>
 
             <section className="space-y-4">
               <div className="mx-auto w-full max-w-xl space-y-4">
@@ -366,40 +506,17 @@ function CreateTransactionDrawer({ open, onClose }) {
               </div>
 
               <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">Nội dung giao dịch</span>
-                <select
+                <span className="mb-1 block text-sm font-medium text-slate-700">
+                  {entryMode === "transaction" ? "Tên giao dịch (Required)" : "Tên lịch giao dịch (Optional)"}
+                </span>
+                <input
+                  type="text"
                   value={name}
-                  onChange={(event) => {
-                    const val = event.target.value;
-                    if (val === "Khác") {
-                      setName("");
-                    } else {
-                      setName(val);
-                    }
-                  }}
-                  className="mb-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                >
-                  <option value="">-- Chọn nội dung --</option>
-                  <option value="Ăn uống">Ăn uống</option>
-                  <option value="Di chuyển">Di chuyển</option>
-                  <option value="Mua sắm">Mua sắm</option>
-                  <option value="Giải trí">Giải trí</option>
-                  <option value="Y tế">Y tế</option>
-                  <option value="Hóa đơn">Hóa đơn</option>
-                  <option value="Nạp tiền">Nạp tiền</option>
-                  <option value="Lương">Lương</option>
-                  <option value="Chuyển khoản">Chuyển khoản</option>
-                  <option value="Khác">Khác (nhập tùy ý)</option>
-                </select>
-                {name && !["Ăn uống","Di chuyển","Mua sắm","Giải trí","Y tế","Hóa đơn","Nạp tiền","Lương","Chuyển khoản"].includes(name) && (
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    placeholder="Nhập nội dung tùy ý..."
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                  />
-                )}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={entryMode === "transaction" ? "Ví dụ: Ăn trưa, Thanh toán điện..." : "Ví dụ: Tiền nhà, Thu nhập lương..."}
+                  required={entryMode === "transaction"}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                />
               </label>
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -419,15 +536,98 @@ function CreateTransactionDrawer({ open, onClose }) {
                     </select>
                   </label>
 
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">Ngày</span>
-                    <input
-                      type="datetime-local"
-                      value={dateTime}
-                      onChange={(event) => setDateTime(event.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                    />
-                  </label>
+                  {entryMode === "transaction" ? (
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-slate-700">Ngày</span>
+                      <input
+                        type="datetime-local"
+                        value={dateTime}
+                        onChange={(event) => setDateTime(event.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                      />
+                    </label>
+                  ) : (
+                    <>
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-slate-700">Ngày bắt đầu</span>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(event) => {
+                            const newStartDate = event.target.value;
+                            setStartDate(newStartDate);
+                            if (!nextDueDate || nextDueDate < newStartDate) {
+                              setNextDueDate(newStartDate);
+                            }
+                          }}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-slate-700">Tần suất</span>
+                        <select
+                          value={frequency}
+                          onChange={(event) => setFrequency(event.target.value)}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                        >
+                          <option value="daily">Hằng ngày</option>
+                          <option value="weekly">Hằng tuần</option>
+                          <option value="monthly">Hằng tháng</option>
+                          <option value="yearly">Hằng năm</option>
+                        </select>
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-slate-700">Giờ thực hiện</span>
+                        <input
+                          type="time"
+                          value={executionTime}
+                          onChange={(event) => setExecutionTime(event.target.value)}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-slate-700">Ngày bắt đầu kỳ đầu</span>
+                        <input
+                          type="date"
+                          value={nextDueDate}
+                          onChange={(event) => setNextDueDate(event.target.value)}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                        />
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-slate-700">Ngày kết thúc (Optional)</span>
+                        <input
+                          type="date"
+                          value={endDate}
+                          onChange={(event) => {
+                            setEndDate(event.target.value);
+                            setNoEndDateLimit(false);
+                          }}
+                          disabled={noEndDateLimit}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                      </label>
+
+                      <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={noEndDateLimit}
+                          onChange={(event) => {
+                            const checked = event.target.checked;
+                            setNoEndDateLimit(checked);
+                            if (checked) {
+                              setEndDate("");
+                            }
+                          }}
+                        />
+                        Không giới hạn thời gian giao dịch định kỳ
+                      </label>
+                    </>
+                  )}
                 </div>
 
                 <div className="space-y-4">
@@ -468,8 +668,59 @@ function CreateTransactionDrawer({ open, onClose }) {
                     </div>
                     <p className="mt-1 text-xs text-slate-500">Đã chọn: {selectedCategoryLabel}</p>
                   </div>
+
+                  {entryMode === "recurring" && (
+                    <>
+                      <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={notificationEnabled}
+                          onChange={(event) => setNotificationEnabled(event.target.checked)}
+                        />
+                        Bật thông báo nhắc
+                      </label>
+
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-slate-700">Nhắc trước (phút)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={remindBeforeMinutes}
+                          onChange={(event) => setRemindBeforeMinutes(Number(event.target.value))}
+                          disabled={!notificationEnabled}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                      </label>
+                    </>
+                  )}
+
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">Ghi chú chi tiết (Optional)</span>
+                    <textarea
+                      value={note}
+                      onChange={(event) => setNote(event.target.value)}
+                      rows={2}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                    />
+                  </label>
                 </div>
               </div>
+
+              {entryMode === "transaction" ? (
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium text-slate-700">Đính kèm hóa đơn</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => setAttachment(event.target.files?.[0] || null)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none"
+                  />
+                </label>
+              ) : (
+                <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                  Giao dịch định kỳ sẽ tự động tạo giao dịch thật vào ngày đến hạn theo tần suất đã chọn.
+                </p>
+              )}
             </section>
           </div>
 
@@ -483,15 +734,15 @@ function CreateTransactionDrawer({ open, onClose }) {
             </button>
             <button
               type="button"
-              onClick={() => saveTransaction(true)}
+              onClick={() => saveEntry(true)}
               disabled={submitting}
               className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed"
             >
-              Lưu và thêm tiếp
+              {entryMode === "transaction" ? "Lưu và thêm tiếp" : "Lưu và tạo thêm"}
             </button>
             <button
               type="button"
-              onClick={() => saveTransaction(false)}
+              onClick={() => saveEntry(false)}
               disabled={submitting}
               className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
             >

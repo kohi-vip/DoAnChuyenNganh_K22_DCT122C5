@@ -9,7 +9,7 @@ from finance_svc.core.database import engine, SessionLocal
 from finance_svc.models import *  # noqa: F401,F403 — registers all models with Base
 from finance_svc.models.base import Base
 
-from finance_svc.views import auth, wallets, categories, transactions, transfers, reports, recurring, ai
+from finance_svc.views import auth, wallets, categories, transactions, transfers, reports, recurring, ai, notifications
 
 settings = get_settings()
 scheduler = AsyncIOScheduler()
@@ -27,7 +27,7 @@ def _run_recurring_job():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
-    scheduler.add_job(_run_recurring_job, "cron", hour=7, minute=0, id="recurring_job")
+    scheduler.add_job(_run_recurring_job, "interval", minutes=1, id="recurring_job")
     scheduler.start()
     yield
     scheduler.shutdown()
@@ -56,6 +56,7 @@ app.include_router(transactions.router)
 app.include_router(transfers.router)
 app.include_router(reports.router)
 app.include_router(recurring.router)
+app.include_router(notifications.router)
 app.include_router(ai.router)
 
 

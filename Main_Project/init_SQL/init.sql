@@ -92,8 +92,13 @@ CREATE TABLE recurring_transactions (
     amount         DECIMAL(18,2) NOT NULL,
     note           TEXT,
     frequency      VARCHAR(20)   NOT NULL  COMMENT 'daily | weekly | monthly | yearly',
+    start_date     DATE          NOT NULL,
     next_due_date  DATE          NOT NULL,
+    execution_time TIME          NOT NULL DEFAULT '08:00:00',
     end_date       DATE,
+    notification_enabled TINYINT(1) NOT NULL DEFAULT 1,
+    remind_before_minutes INT    NOT NULL DEFAULT 30,
+    last_notified_at DATETIME    NULL,
     is_active      TINYINT(1)    NOT NULL DEFAULT 1,
 
     CONSTRAINT fk_recurring_wallet
@@ -104,15 +109,50 @@ CREATE TABLE recurring_transactions (
         CHECK (type IN ('income', 'expense')),
     CONSTRAINT chk_recurring_frequency
         CHECK (frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+    CONSTRAINT chk_recurring_remind_before_minutes
+        CHECK (remind_before_minutes >= 0),
 
     INDEX idx_recurring_wallet_id (wallet_id),
     INDEX idx_recurring_next_due (next_due_date),
+    INDEX idx_recurring_start_date (start_date),
     INDEX idx_recurring_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- -------------------------------------------------------------
--- 5. TRANSACTIONS
+-- 5. NOTIFICATIONS
+-- Thông báo nhắc/giao dịch định kỳ cho người dùng
+-- notification_type: 'reminder' | 'due' | 'overdue'
+-- -------------------------------------------------------------
+CREATE TABLE notifications (
+    id                CHAR(36)      NOT NULL PRIMARY KEY DEFAULT (UUID()),
+    user_id           CHAR(36)      NOT NULL,
+    recurring_id      CHAR(36),
+    title             VARCHAR(255)  NOT NULL,
+    message           TEXT          NOT NULL,
+    notification_type VARCHAR(20)   NOT NULL COMMENT 'reminder | due | overdue',
+    scheduled_for     DATETIME      NOT NULL,
+    is_read           TINYINT(1)    NOT NULL DEFAULT 0,
+    read_at           DATETIME      NULL,
+    created_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_notifications_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_notifications_recurring
+        FOREIGN KEY (recurring_id) REFERENCES recurring_transactions(id) ON DELETE SET NULL,
+    CONSTRAINT chk_notifications_type
+        CHECK (notification_type IN ('reminder', 'due', 'overdue')),
+
+    UNIQUE KEY uq_notifications_recurring_type_schedule (recurring_id, notification_type, scheduled_for),
+    INDEX idx_notifications_user_id (user_id),
+    INDEX idx_notifications_recurring_id (recurring_id),
+    INDEX idx_notifications_is_read (is_read),
+    INDEX idx_notifications_scheduled_for (scheduled_for)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- -------------------------------------------------------------
+-- 6. TRANSACTIONS
 -- Giao dịch thu/chi thực tế
 -- type: 'income' | 'expense'
 -- source: 'manual' | 'auto_sync'
@@ -155,7 +195,7 @@ CREATE TABLE transactions (
 
 
 -- -------------------------------------------------------------
--- 6. TRANSFERS
+-- 7. TRANSFERS
 -- Chuyển khoản nội bộ giữa các ví (KHÔNG tính vào thu/chi)
 -- -------------------------------------------------------------
 CREATE TABLE transfers (

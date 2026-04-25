@@ -1,5 +1,5 @@
 import {
-	// Bell,  // tạm ẩn - chưa dùng
+	Bell,
 	Bot,
 	ChartColumnBig,
 	CreditCard,
@@ -11,21 +11,53 @@ import {
 	Settings,
 	// User,  // tạm ẩn - chưa dùng
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { fetchUnreadNotificationCount } from "../../api/financeApi";
 import { useAuth } from "../../stores/useAuth";
-
-const navItems = [
-	{ id: "home", label: "Trang chủ", icon: Home, path: "/dashboard" },
-	{ id: "history", label: "Lịch sử giao dịch", icon: History, path: "/transactions" },
-	{ id: "wallet-category", label: "Quản lý ví và danh mục", icon: CreditCard, path: "/wallet-categories" },
-	{ id: "ai", label: "Màn hình AI", icon: Bot },
-	{ id: "report", label: "Thống kê", icon: ChartColumnBig, path: "/reports" },
-	{ id: "account", label: "Cài đặt tài khoản", icon: Settings, path: "/account-settings" },
-];
 
 function ManagementSidebar({ onOpenCreateTransaction }) {
 	const navigate = useNavigate();
 	const { logout } = useAuth();
+	const [unreadCount, setUnreadCount] = useState(0);
+
+	useEffect(() => {
+		let mounted = true;
+
+		const loadUnreadCount = async () => {
+			try {
+				const count = await fetchUnreadNotificationCount();
+				if (mounted) {
+					setUnreadCount(count);
+				}
+			} catch {
+				if (mounted) {
+					setUnreadCount(0);
+				}
+			}
+		};
+
+		loadUnreadCount();
+		const timer = window.setInterval(loadUnreadCount, 60000);
+
+		return () => {
+			mounted = false;
+			window.clearInterval(timer);
+		};
+	}, []);
+
+	const navItems = useMemo(
+		() => [
+			{ id: "home", label: "Trang chủ", icon: Home, path: "/dashboard" },
+			{ id: "history", label: "Lịch sử giao dịch", icon: History, path: "/transactions" },
+			{ id: "wallet-category", label: "Quản lý ví và danh mục", icon: CreditCard, path: "/wallet-categories" },
+			{ id: "ai", label: "Trợ lý AI Jelly", icon: Bot, path: "/ai-assistant" },
+			{ id: "report", label: "Thống kê", icon: ChartColumnBig, path: "/reports" },
+			{ id: "notifications", label: "Thông báo", icon: Bell, path: "/notifications", badgeCount: unreadCount },
+			{ id: "account", label: "Cài đặt tài khoản", icon: Settings, path: "/account-settings" },
+		],
+		[unreadCount]
+	);
 
 	const handleLogout = () => {
 		const accepted = window.confirm("Bạn có chắc chắn muốn đăng xuất?");
@@ -97,6 +129,11 @@ function ManagementSidebar({ onOpenCreateTransaction }) {
 								>
 									<Icon className="h-4 w-4" />
 									<span>{item.label}</span>
+									{item.badgeCount > 0 ? (
+										<span className="ml-auto inline-flex min-w-5 justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+											{item.badgeCount > 99 ? "99+" : item.badgeCount}
+										</span>
+									) : null}
 								</NavLink>
 							);
 						}

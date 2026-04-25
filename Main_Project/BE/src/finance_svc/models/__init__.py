@@ -4,6 +4,7 @@ from finance_svc.models.category import Category
 from finance_svc.models.transaction import Transaction
 from finance_svc.models.transfer import Transfer
 from finance_svc.models.recurring_transaction import RecurringTransaction
+from finance_svc.models.notification import Notification
 
 __all__ = [
     "User",
@@ -12,4 +13,5 @@ __all__ = [
     "Transaction",
     "Transfer",
     "RecurringTransaction",
+    "Notification",
 ]

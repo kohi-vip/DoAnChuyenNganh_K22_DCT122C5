@@ -6,6 +6,8 @@ import AccountSettingsPage from "./pages/AccountSettingsPage";
 import ReportsPage from "./pages/ReportsPage";
 import SignUpPage from "./pages/SignUpPage";
 import TransactionsPage from "./pages/TransactionsPage";
+import AIPage from "./pages/AIPage";
+import NotificationsPage from "./pages/NotificationsPage";
 import MainLayout from "./layouts/MainLayout";
 import { useAuth } from "./stores/useAuth";
 
@@ -34,6 +36,8 @@ function App() {
 				<Route path="/wallet-categories" element={<ManagementPage />} />
 				<Route path="/transactions" element={<TransactionsPage />} />
 				<Route path="/reports" element={<ReportsPage />} />
+				<Route path="/ai-assistant" element={<AIPage />} />
+				<Route path="/notifications" element={<NotificationsPage />} />
 				<Route path="/account-settings" element={<AccountSettingsPage />} />
 			</Route>
 			<Route path="*" element={<Navigate to="/dashboard" replace />} />

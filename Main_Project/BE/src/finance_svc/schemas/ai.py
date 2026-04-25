@@ -29,9 +29,15 @@ class NLQueryResponse(BaseModel):
 class OCRReceiptResponse(BaseModel):
     amount: Decimal | None = None
     date: str | None = None
+    transacted_at: str | None = None
+    type: str = "expense"
     vendor: str | None = None
+    note: str | None = None
     suggested_category: str | None = None
     line_items: list[dict] = []
+    confidence: dict | None = None
+    needs_review: bool = True
+    warnings: list[str] = []
     raw_data: dict = {}
 
 
@@ -68,3 +74,17 @@ class ChatResponse(BaseModel):
     session_id: str
     reply: str
     history: list[ChatMessage]
+
+
+class JellyChatRequest(BaseModel):
+    message: str
+    session_id: str | None = None
+    # Ảnh hóa đơn (base64 thuần, không có prefix data:...)
+    image_base64: str | None = None
+    image_name: str | None = None
+    image_mime_type: str | None = None
+
+
+class JellyChatResponse(BaseModel):
+    session_id: str
+    reply: str

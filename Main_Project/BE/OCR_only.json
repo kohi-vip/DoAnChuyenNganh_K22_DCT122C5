@@ -1,0 +1,208 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "<REDACTED_WEBHOOK_PATH>",
+        "responseMode": "streaming",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -144,
+        96
+      ],
+      "id": "5602573d-072e-4a4e-8cb8-42b5e020db78",
+      "name": "Webhook",
+      "webhookId": "<REDACTED_WEBHOOK_ID>"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $('image').first().json;\nconst vf = $json || {};\n\n// 1) Lay text OCR tu cac truong pho bien\nconst baseText =\n  (typeof vf.ocr_text === 'string' && vf.ocr_text.trim()) ||\n  (typeof vf.raw_text === 'string' && vf.raw_text.trim()) ||\n  (typeof vf.text === 'string' && vf.text.trim()) ||\n  '';\n\n// 2) Gom line items neu co\nlet itemsText = '';\nif (Array.isArray(vf.line_items) && vf.line_items.length) {\n  itemsText = vf.line_items\n    .map((it, idx) => {\n      const desc = it.description || it.text || 'Muc khong ro';\n      const qty = it.quantity ?? '';\n      const amount = it.total ?? it.price ?? '';\n      return `${idx + 1}. ${desc} | SL: ${qty} | Tien: ${amount}`;\n    })\n    .join('\\n');\n}\n\n// 3) Tao ocrText tong hop\nconst ocrText = [baseText, itemsText].filter(Boolean).join('\\n').trim();\nconst ocrStatus = ocrText ? 'ok' : 'empty';\n\n// 4) Lay metadata hoa don neu co\nconst vendor =\n  (vf.vendor && (vf.vendor.name || vf.vendor)) ||\n  vf.vendor_name ||\n  '';\nconst date = vf.date || vf.invoice_date || '';\nconst total = vf.total ?? vf.grand_total ?? '';\n\n// 5) Dong goi lai chatInput cho Agent (bat buoc la string)\nconst agentInput = [\n  `Cau hoi nguoi dung: ${src.chatInput || ''}`,\n  `Da gui anh: Co`,\n  `OCR status: ${ocrStatus}`,\n  `Vendor: ${vendor}`,\n  `Date: ${date}`,\n  `Total: ${total}`,\n  '',\n  'Noi dung OCR:',\n  ocrText || 'Khong trich xuat duoc noi dung ro rang.'\n].join('\\n');\n\nreturn [\n  {\n    json: {\n      action: src.action || '',\n      sessionId: src.sessionId || '',\n      hasImage: true,\n      ocrStatus,\n      ocrText,\n      vendor,\n      date,\n      total,\n      chatInput: agentInput\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        96
+      ],
+      "id": "d1658b12-ec2a-4d85-ad0b-f0d1c2827430",
+      "name": "parse OCR to text"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "ROLE\nBạn là OCR Transaction Mapper cho ứng dụng quản lý tài chính cá nhân.\nNhiệm vụ duy nhất: chuyển dữ liệu OCR hóa đơn thành dữ liệu phù hợp để điền form giao dịch.\n\nLANGUAGE\n- Luôn xử lý tiếng Việt.\n- Đầu ra chỉ là JSON hợp lệ, không thêm mô tả.\n\nINPUT\nBạn nhận dữ liệu OCR thô, có thể gồm:\n- ocr_text (chuỗi dài)\n- vendor / vendor_name\n- date / invoice_date\n- total / grand_total\n- line_items (mảng)\n- metadata khác\n\nGOAL OUTPUT\nTrả về đúng schema JSON sau:\n\n{\n  \"amount\": <number|null>,\n  \"type\": \"expense\",\n  \"vendor\": <string|null>,\n  \"note\": <string|null>,\n  \"transacted_at\": <ISO8601 string|null>,\n  \"suggested_category\": <string|null>,\n  \"line_items_summary\": <string|null>,\n  \"confidence\": {\n    \"amount\": <0..1>,\n    \"vendor\": <0..1>,\n    \"transacted_at\": <0..1>,\n    \"suggested_category\": <0..1>\n  },\n  \"needs_review\": <true|false>,\n  \"warnings\": [<string>, ...]\n}\n\nMAPPING RULES\n1) amount\n- Ưu tiên: total > grand_total > các trường tổng tiền tương đương.\n- Chỉ lấy số tiền thanh toán cuối cùng của hóa đơn.\n- Nếu không chắc chắn, trả null và thêm warning.\n\n2) type\n- Luôn là \"expense\".\n\n3) vendor\n- Ưu tiên tên đơn vị phát hành/bán hàng rõ nhất.\n- Loại bỏ mã số, địa chỉ dài nếu không cần thiết.\n\n4) transacted_at\n- Ưu tiên ngày phát hành/ngày ký/ngày hóa đơn.\n- Chuẩn hóa về ISO8601.\n- Nếu chỉ có ngày không có giờ: dùng 00:00:00 local time.\n- Nếu mơ hồ, trả null + warning.\n\n5) suggested_category\n- Suy luận theo ngữ nghĩa:\n  - điện/nước/internet => \"Tiện ích\" hoặc \"Hóa đơn\"\n  - siêu thị/đồ ăn => \"Ăn uống\"/\"Mua sắm\"\n  - xăng/di chuyển => \"Di chuyển\"\n- Nếu không chắc, trả null.\n\n6) note\n- Mẫu ưu tiên: \"Hóa đơn <vendor>\"\n- Nếu có kỳ thanh toán rõ ràng có thể thêm ngắn gọn: \"Hóa đơn điện <vendor> kỳ ...\"\n\n7) line_items_summary\n- Tóm tắt ngắn gọn tối đa 1-2 dòng từ line_items quan trọng.\n- Không nhồi toàn bộ OCR text.\n\nCONFIDENCE & REVIEW\n- needs_review = true nếu:\n  - amount null, hoặc\n  - transacted_at null, hoặc\n  - bất kỳ confidence chính < 0.75\n- warnings phải nêu rõ trường nào thiếu/không chắc.\n\nCONSTRAINTS\n- Không bịa dữ liệu.\n- Không suy luận quá mức khi thiếu bằng chứng.\n- Không trả lời ngoài JSON.\n- JSON phải parse được ngay.",
+          "enableStreaming": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        544,
+        96
+      ],
+      "id": "6c3bc467-a3f4-4131-8cb1-b09564ee85c7",
+      "name": "Information Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        544,
+        304
+      ],
+      "id": "c4a3671d-f042-4309-9042-924b5bc6194b",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "<REDACTED_GROQ_CREDENTIAL_ID>",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const candidate = $json.output ?? $json.text ?? $json.response ?? $json;\nlet data = {};\n\nif (typeof candidate === \"string\") {\nconst raw = candidate;\nconst start = raw.indexOf(\"{\");\nconst end = raw.lastIndexOf(\"}\") + 1;\n\nif (start >= 0 && end > start) {\ntry {\ndata = JSON.parse(raw.slice(start, end));\n} catch (e) {\ndata = {};\n}\n}\n} else if (candidate && typeof candidate === \"object\") {\ndata = candidate;\n} else if ($json && typeof $json === \"object\") {\ndata = $json;\n}\n\nconst amount = data.amount != null ? Number(data.amount) : null;\nconst vendor = data.vendor ?? null;\nconst transacted_at = data.transacted_at ?? data.date ?? null;\nconst suggested_category = data.suggested_category ?? null;\nconst note = data.note ?? (vendor ? \"Hoa don \" + vendor : null);\n\nreturn [\n{\njson: {\namount,\nvendor,\ntransacted_at,\nsuggested_category,\nnote,\nline_items: data.line_items ?? [],\nconfidence: data.confidence ?? null,\nneeds_review: data.needs_review ?? true,\nwarnings: data.warnings ?? [],\n},\n},\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        96
+      ],
+      "id": "6a2a1265-0248-4735-9dad-d11ce8f280a8",
+      "name": "parse output to json"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $json.body ?? $json;\n\nconsole.log(\"Input keys:\", Object.keys(src));\nconsole.log(\"Image object:\", src.image);\n\nconst imageObj = src.image ?? null;\n\nif (!imageObj) {\n  throw new Error(`Image not found. Structure: ${JSON.stringify(src).substring(0, 300)}`);\n}\n\nconst rawData = String(imageObj.data ?? \"\").trim();\n\nif (!rawData) {\n  throw new Error(`Image data is empty`);\n}\n\nconst base64 = rawData.replace(/^data:[^;]+;base64,/, \"\");\n\nreturn [\n  {\n    json: {\n      image: {\n        name: imageObj.name ?? \"upload.jpg\",\n        mimeType: imageObj.mimeType ?? \"image/jpeg\",\n        data: base64,\n      },\n      user_id: src.user_id ?? \"\",\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        96
+      ],
+      "id": "16ec7f02-5af2-4d72-ba71-a5896edafdb4",
+      "name": "image"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.veryfi.com/api/v8/partner/documents/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "CLIENT-ID",
+              "value": "<REDACTED_CLIENT_ID>"
+            },
+            {
+              "name": "AUTHORIZATION",
+              "value": "apikey <REDACTED_API_KEY>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"file_name\": \"{{$json.image.name || 'upload.jpg'}}\",\n  \"file_data\": \"{{$json.image.data || ''}}\",\n  \"categories\": [\"other\"]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        192,
+        96
+      ],
+      "id": "702e0f8d-a63f-4d2a-bb31-f43e084c2c90",
+      "name": "OCR_tool"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse OCR to text": {
+      "main": [
+        [
+          {
+            "node": "Information Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Information Agent": {
+      "main": [
+        [
+          {
+            "node": "parse output to json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Information Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "image": {
+      "main": [
+        [
+          {
+            "node": "OCR_tool",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR_tool": {
+      "main": [
+        [
+          {
+            "node": "parse OCR to text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "<REDACTED_INSTANCE_ID>"
+  }
+}

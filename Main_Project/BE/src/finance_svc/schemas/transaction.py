@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class TransactionCreate(BaseModel):
     wallet_id: str
     category_id: str | None = None
+    recurring_id: str | None = None
     type: str  # 'income' | 'expense'
     amount: Decimal = Field(gt=0)
     currency: str = "VND"

@@ -10,7 +10,8 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.12
 groq==0.11.0
 google-generativeai==0.8.3
-veryfi==9.0.0
+#veryfi==9.0.0
+veryfi==5.0.1
 httpx==0.27.2
 python-dotenv==1.0.1
 apscheduler==3.10.4
