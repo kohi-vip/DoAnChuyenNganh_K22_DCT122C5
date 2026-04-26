@@ -47,7 +47,8 @@ function TransactionsPage() {
     dateTo: "",
     transactionKind: "all",
     walletId: "all",
-    categoryId: "all",
+    parentCategoryId: "all",
+    childCategoryId: "all",
     type: "all",
   });
   const [appliedFilters, setAppliedFilters] = useState({
@@ -55,7 +56,8 @@ function TransactionsPage() {
     dateTo: "",
     transactionKind: "all",
     walletId: "all",
-    categoryId: "all",
+    parentCategoryId: "all",
+    childCategoryId: "all",
     type: "all",
   });
   const [page, setPage] = useState(1);
@@ -133,6 +135,36 @@ function TransactionsPage() {
     return flattened;
   }, [categories]);
 
+  const parentCategoryOptions = useMemo(() => {
+    return [
+      ...categories.map((parent) => ({
+        id: parent.id,
+        name: parent.name,
+        type: parent.type,
+      })),
+      {
+        id: "cat_transfer",
+        name: "Chuyển khoản nội bộ",
+        type: "transfer",
+      },
+    ];
+  }, [categories]);
+
+  const categoryChildrenMap = useMemo(() => {
+    const mapping = new Map();
+    categories.forEach((parent) => {
+      mapping.set(parent.id, parent.children || []);
+    });
+    return mapping;
+  }, [categories]);
+
+  const selectedDraftChildCategoryOptions = useMemo(() => {
+    if (draftFilters.parentCategoryId === "all" || draftFilters.parentCategoryId === "cat_transfer") {
+      return [];
+    }
+    return categoryChildrenMap.get(draftFilters.parentCategoryId) || [];
+  }, [draftFilters.parentCategoryId, categoryChildrenMap]);
+
   const runWithWalletLocks = async (walletIds, mutation) => {
     const uniqueWallets = [...new Set(walletIds.filter(Boolean))].sort();
 
@@ -152,7 +184,16 @@ function TransactionsPage() {
   };
 
   const handleChangeDraft = (key, value) => {
-    setDraftFilters((current) => ({ ...current, [key]: value }));
+    setDraftFilters((current) => {
+      if (key === "parentCategoryId") {
+        return {
+          ...current,
+          parentCategoryId: value,
+          childCategoryId: "all",
+        };
+      }
+      return { ...current, [key]: value };
+    });
   };
 
   const handleApplyFilters = () => {
@@ -176,7 +217,21 @@ function TransactionsPage() {
           return false;
         }
 
-        if (appliedFilters.categoryId !== "all" && item.categoryId !== appliedFilters.categoryId) {
+        if (appliedFilters.parentCategoryId !== "all") {
+          if (appliedFilters.parentCategoryId === "cat_transfer") {
+            if (item.type !== "transfer") {
+              return false;
+            }
+          } else {
+            const childIds = (categoryChildrenMap.get(appliedFilters.parentCategoryId) || []).map((child) => child.id);
+            const allowedIds = new Set([appliedFilters.parentCategoryId, ...childIds]);
+            if (!allowedIds.has(item.categoryId)) {
+              return false;
+            }
+          }
+        }
+
+        if (appliedFilters.childCategoryId !== "all" && item.categoryId !== appliedFilters.childCategoryId) {
           return false;
         }
 
@@ -214,7 +269,7 @@ function TransactionsPage() {
         const aTimestamp = new Date(a.transacted_at || a.date || 0).getTime();
         return bTimestamp - aTimestamp;
       });
-  }, [transactions, appliedFilters]);
+  }, [transactions, appliedFilters, categoryChildrenMap]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / PAGE_SIZE));
 
@@ -445,7 +500,8 @@ function TransactionsPage() {
         onChangeDraft={handleChangeDraft}
         onApplyFilters={handleApplyFilters}
         walletOptions={wallets}
-        categoryOptions={categoryOptions}
+        parentCategoryOptions={parentCategoryOptions}
+        childCategoryOptions={selectedDraftChildCategoryOptions}
       />
 
       <TransactionTable

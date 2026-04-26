@@ -2,7 +2,7 @@
 backend/venv/
 __pycache__/
 *.pyc
-
+.venv
 # Bỏ qua thư viện của Node.js
 node_modules/
 dist/

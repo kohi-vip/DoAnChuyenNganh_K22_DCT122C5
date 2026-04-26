@@ -1,4 +1,4 @@
-import { Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import httpClient from "../../api/httpClient";
 import { useAppData } from "../../stores/AppDataContext";
@@ -21,8 +21,15 @@ const toDateValue = (date = new Date()) => {
 
 const emptyToast = { type: "", message: "" };
 
+const buildDefaultTransactionName = ({ transactionType, transactionCount }) => {
+  const safeCount = Number.isFinite(transactionCount) ? transactionCount : 0;
+  const nextNumber = Math.max(1, safeCount + 1);
+  const label = transactionType === "income" ? "thu nhập" : "chi tiêu";
+  return `giao dịch ${label} số ${nextNumber}`;
+};
+
 function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
-  const { wallets, setWallets, categories, setTransactions, refreshAll } = useAppData();
+  const { wallets, setWallets, categories, transactions, setTransactions, refreshAll } = useAppData();
   const modalRef = useRef(null);
   const amountInputRef = useRef(null);
 
@@ -30,6 +37,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
   const [name, setName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
   const [walletId, setWalletId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [recurringId, setRecurringId] = useState("");
@@ -42,13 +50,15 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
   const [noEndDateLimit, setNoEndDateLimit] = useState(true);
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [remindBeforeMinutes, setRemindBeforeMinutes] = useState(30);
-  const [note, setNote] = useState("");
-  const [attachment, setAttachment] = useState(null);
 
   const [categorySearch, setCategorySearch] = useState("");
   const [toast, setToast] = useState(emptyToast);
   const [submitting, setSubmitting] = useState(false);
-  const [parsing, setParsing] = useState(false);
+
+  const transactionCountForType = useMemo(
+    () => (transactions || []).filter((transaction) => transaction.type === type).length,
+    [transactions, type]
+  );
 
   useEffect(() => {
     if (!open) {
@@ -63,6 +73,25 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
     setDateTime((current) => current || toDateTimeLocalValue());
     setNextDueDate((current) => current || toDateValue());
   }, [open, wallets]);
+
+  useEffect(() => {
+    if (!open || initialPrefill) {
+      return;
+    }
+
+    setNameTouched(false);
+
+    if (entryMode !== "transaction") {
+      return;
+    }
+
+    setName(
+      buildDefaultTransactionName({
+        transactionType: type,
+        transactionCount: transactionCountForType,
+      })
+    );
+  }, [open, initialPrefill]);
 
   useEffect(() => {
     if (!open) {
@@ -160,8 +189,8 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
 
     const prefillNote = initialPrefill.note || (initialPrefill.vendor ? `Hóa đơn ${initialPrefill.vendor}` : "");
     if (prefillNote) {
-      setNote(prefillNote);
       setName(prefillNote);
+      setNameTouched(true);
     }
 
     if (initialPrefill.category_id) {
@@ -180,6 +209,23 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
     }
     setRecurringId("");
   }, [open, initialPrefill]);
+
+  useEffect(() => {
+    if (!open || entryMode !== "transaction") {
+      return;
+    }
+
+    if (initialPrefill || nameTouched) {
+      return;
+    }
+
+    setName(
+      buildDefaultTransactionName({
+        transactionType: type,
+        transactionCount: transactionCountForType,
+      })
+    );
+  }, [open, entryMode, type, initialPrefill, nameTouched, transactionCountForType]);
 
   const categoryTree = useMemo(() => {
     const keyword = categorySearch.trim().toLowerCase();
@@ -233,12 +279,16 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
     return `${new Intl.NumberFormat("vi-VN").format(numeric)} VND`;
   }, [amount]);
 
-  const resetForNext = () => {
+  const resetForNext = ({ additionalTransactionCount = 0 } = {}) => {
     setAmount("");
-    setName("");
-    setNote("");
+    setName(
+      buildDefaultTransactionName({
+        transactionType: type,
+        transactionCount: transactionCountForType + additionalTransactionCount,
+      })
+    );
+    setNameTouched(false);
     setRecurringId("");
-    setAttachment(null);
     setCategorySearch("");
     setDateTime(toDateTimeLocalValue());
     setNextDueDate(toDateValue());
@@ -277,8 +327,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
     category_id: categoryId,
     recurring_id: recurringId || null,
     transacted_at: normalizeDateTime(dateTime),
-    note,
-    receipt_url: attachment ? `uploaded://${attachment.name}` : null,
   });
 
   const buildRecurringPayload = () => ({
@@ -286,7 +334,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
     category_id: categoryId,
     type,
     amount: Number(amount),
-    note: (note || name || "").trim() || null,
+    note: name.trim() || null,
     frequency,
     start_date: startDate,
     execution_time: executionTime,
@@ -369,50 +417,21 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
       setSubmitting(false);
     }
 
+    if (isTransactionMode) {
+      await refreshAll();
+    }
+
     if (keepOpen) {
-      resetForNext();
+      resetForNext({ additionalTransactionCount: isTransactionMode ? 1 : 0 });
       amountInputRef.current?.focus();
       return;
     }
 
     onClose();
-    resetForNext();
-  };
+    resetForNext({ additionalTransactionCount: isTransactionMode ? 1 : 0 });
 
-  const handleParseNlp = async () => {
-    if (!aiInput.trim()) {
-      return;
-    }
-
-    try {
-      setParsing(true);
-      const response = await httpClient.post("/api/ai/parse-transaction", { text: aiInput.trim() });
-      const parsed = response.data || {};
-
-      if (parsed.amount) {
-        setAmount(String(parsed.amount));
-      }
-      if (parsed.type === "income" || parsed.type === "expense") {
-        setType(parsed.type);
-      }
-      if (parsed.wallet_id) {
-        setWalletId(parsed.wallet_id);
-      }
-      if (parsed.category_id) {
-        setCategoryId(parsed.category_id);
-      }
-      if (parsed.transacted_at) {
-        setDateTime(toDateTimeLocalValue(new Date(parsed.transacted_at)));
-      }
-      if (parsed.name) {
-        setName(parsed.name);
-      }
-
-      setToast({ type: "success", message: "Đã phân tích nội dung AI, vui lòng kiểm tra lại trước khi lưu." });
-    } catch (error) {
-      setToast({ type: "error", message: error?.response?.data?.detail || "Không thể phân tích bằng AI." });
-    } finally {
-      setParsing(false);
+    if (isTransactionMode) {
+      window.location.reload();
     }
   };
 
@@ -507,14 +526,17 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
 
               <label className="block">
                 <span className="mb-1 block text-sm font-medium text-slate-700">
-                  {entryMode === "transaction" ? "Tên giao dịch (Required)" : "Tên lịch giao dịch (Optional)"}
+                  {entryMode === "transaction" ? "Nội dung giao dịch" : "Tên lịch giao dịch (Optional)"}
                 </span>
                 <input
                   type="text"
                   value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={entryMode === "transaction" ? "Ví dụ: Ăn trưa, Thanh toán điện..." : "Ví dụ: Tiền nhà, Thu nhập lương..."}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setNameTouched(true);
+                  }}
                   required={entryMode === "transaction"}
+                  placeholder={entryMode === "transaction" ? "" : "Ví dụ: Tiền nhà, Thu nhập lương..."}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
                 />
               </label>
@@ -694,33 +716,14 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
                     </>
                   )}
 
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">Ghi chú chi tiết (Optional)</span>
-                    <textarea
-                      value={note}
-                      onChange={(event) => setNote(event.target.value)}
-                      rows={2}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                    />
-                  </label>
                 </div>
               </div>
 
-              {entryMode === "transaction" ? (
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">Đính kèm hóa đơn</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => setAttachment(event.target.files?.[0] || null)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none"
-                  />
-                </label>
-              ) : (
+              {entryMode === "recurring" ? (
                 <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
                   Giao dịch định kỳ sẽ tự động tạo giao dịch thật vào ngày đến hạn theo tần suất đã chọn.
                 </p>
-              )}
+              ) : null}
             </section>
           </div>
 
