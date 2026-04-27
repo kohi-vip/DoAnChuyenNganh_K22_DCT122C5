@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useOutletContext } from "react-router-dom";
 import {
   fetchRecurringTemplates,
   fetchNotifications,
@@ -24,6 +25,7 @@ const formatDateTime = (value) => {
 };
 
 function NotificationsPage() {
+  const { openCreateTransaction } = useOutletContext();
   const [items, setItems] = useState([]);
   const [recurringMap, setRecurringMap] = useState({});
   const [loading, setLoading] = useState(false);
@@ -160,10 +162,47 @@ function NotificationsPage() {
       return;
     }
 
-    if (!recurring.isActive && action !== "dismiss") {
+    if (!recurring.isActive) {
       setFeedback({
         type: "error",
         message: "Giao dịch định kỳ này đã bị hủy, không thể thực hiện thao tác.",
+      });
+      return;
+    }
+
+    if (action === "pay") {
+      if (!openCreateTransaction) {
+        setFeedback({
+          type: "error",
+          message: "Không thể mở form thanh toán lúc này.",
+        });
+        return;
+      }
+
+      openCreateTransaction({
+        recurring_id: recurring.id,
+        wallet_id: recurring.walletId,
+        category_id: recurring.categoryId,
+        type: recurring.type,
+        amount: recurring.amount,
+        note: recurring.note || item.message || item.title,
+        transacted_at: item.scheduledFor || new Date().toISOString(),
+        onSuccess: async () => {
+          try {
+            setPendingActionKey(actionKey);
+            await runNotificationAction(item.id, "pay");
+            setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
+            await Promise.all([loadNotifications(), loadRecurringTemplates()]);
+            setFeedback({ type: "success", message: "Đã thanh toán thành công." });
+          } catch (error) {
+            setFeedback({
+              type: "error",
+              message: error?.response?.data?.detail || "Thanh toán xong nhưng không thể đồng bộ trạng thái thông báo.",
+            });
+          } finally {
+            setPendingActionKey("");
+          }
+        },
       });
       return;
     }
@@ -174,7 +213,7 @@ function NotificationsPage() {
       setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
       await Promise.all([loadNotifications(), loadRecurringTemplates()]);
 
-      const actionLabel = action === "pay" ? "thanh toán" : action === "skip" ? "hủy kỳ này" : "dismiss";
+      const actionLabel = action === "pay" ? "thanh toán" : "hủy kỳ này";
       setFeedback({ type: "success", message: `Đã ${actionLabel} thành công.` });
     } catch (error) {
       setFeedback({
@@ -241,7 +280,7 @@ function NotificationsPage() {
                 <th className="border-b border-slate-200 px-3 py-2.5 font-semibold text-slate-700">Lịch</th>
                 <th className="border-b border-slate-200 px-3 py-2.5 font-semibold text-slate-700">Giao dịch dự kiến</th>
                 <th className="border-b border-slate-200 px-3 py-2.5 font-semibold text-slate-700">Trạng thái</th>
-                <th className="border-b border-slate-200 px-3 py-2.5 font-semibold text-slate-700">Hành động</th>
+                <th className="border-b border-slate-200 px-3 py-2.5 text-center font-semibold text-slate-700">Hành động</th>
               </tr>
             </thead>
             <tbody>
@@ -302,13 +341,13 @@ function NotificationsPage() {
                         {item.isRead ? "Đã đọc" : "Chưa đọc"}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex flex-wrap items-center gap-2">
+                    <td className="w-[180px] px-3 py-2.5 align-top">
+                      <div className="mx-auto grid w-[148px] grid-cols-1 gap-2">
                         <button
                           type="button"
                           onClick={() => handleToggleRead(item)}
                           disabled={pendingReadId === item.id}
-                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="w-full whitespace-nowrap rounded-lg border border-slate-200 px-2.5 py-1.5 text-center text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {pendingReadId === item.id
                             ? "Đang lưu..."
@@ -326,7 +365,7 @@ function NotificationsPage() {
                             pendingActionKey === `${item.id}:pay` ||
                             !recurringMap[item.recurringId]?.isActive
                           }
-                          className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="w-full whitespace-nowrap rounded-lg bg-blue-600 px-2.5 py-1.5 text-center text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {item.isPaid
                             ? "Đã giao dịch"
@@ -346,21 +385,12 @@ function NotificationsPage() {
                             pendingActionKey === `${item.id}:skip` ||
                             !recurringMap[item.recurringId]?.isActive
                           }
-                          className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="w-full whitespace-nowrap rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-center text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {pendingActionKey === `${item.id}:skip` ? "Đang xử lý..." : "Hủy"}
                         </button>
 
-                        {item.notificationType === "reminder" ? (
-                          <button
-                            type="button"
-                            onClick={() => handleNotificationAction(item, "dismiss")}
-                            disabled={!item.recurringId || item.isPaid || pendingActionKey === `${item.id}:dismiss`}
-                            className="rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {pendingActionKey === `${item.id}:dismiss` ? "Đang xử lý..." : "Dismiss"}
-                          </button>
-                        ) : null}
+
                       </div>
                     </td>
                   </tr>
