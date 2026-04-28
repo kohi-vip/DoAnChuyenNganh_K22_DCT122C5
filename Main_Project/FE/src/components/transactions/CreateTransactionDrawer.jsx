@@ -180,6 +180,22 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
     setRecurringId("");
   }, [open, initialPrefill]);
 
+  useEffect(() => {
+    if (open) {
+      return;
+    }
+    setAmount("");
+    setName("");
+    setNote("");
+    setRecurringId("");
+    setAttachment(null);
+    setCategorySearch("");
+    setDateTime(toDateTimeLocalValue());
+    setNextDueDate(toDateValue());
+    setEndDate("");
+    setNoEndDateLimit(true);
+  }, [open]);
+
   const categoryTree = useMemo(() => {
     const keyword = categorySearch.trim().toLowerCase();
 
