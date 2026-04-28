@@ -1,7 +1,7 @@
 import math
 import calendar
 import uuid
-from datetime import date, datetime, timedelta, time
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -166,44 +166,98 @@ def handle_notification_action(db: Session, user_id: str, notification_id: str, 
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet not found")
 
+    if action == "dismiss":
+        action = "skip"
+
+    cycle_start, cycle_end = _resolve_cycle_bounds(notification, recurring)
+    due_at = _resolve_due_at(notification, recurring)
     result = {"action": action, "notification_id": notification_id}
 
     if action == "pay":
-        txn = Transaction(
-            id=str(uuid.uuid4()),
-            wallet_id=recurring.wallet_id,
-            category_id=recurring.category_id,
-            recurring_id=recurring.id,
-            type=recurring.type,
-            amount=recurring.amount,
-            note=recurring.note,
-            transacted_at=_vn_now(),
-            source="manual",
-            is_reviewed=True,
-        )
-        db.add(txn)
-        if recurring.type == "income":
-            wallet.balance += recurring.amount
-        else:
-            wallet.balance -= recurring.amount
-        result["transaction_id"] = txn.id
+        if not _has_manual_payment_in_cycle(db, recurring.id, cycle_start, cycle_end):
+            txn = Transaction(
+                id=str(uuid.uuid4()),
+                wallet_id=recurring.wallet_id,
+                category_id=recurring.category_id,
+                recurring_id=recurring.id,
+                type=recurring.type,
+                amount=recurring.amount,
+                note=recurring.note,
+                transacted_at=_vn_now(),
+                source="manual",
+                is_reviewed=True,
+            )
+            db.add(txn)
+            if recurring.type == "income":
+                wallet.balance += recurring.amount
+            else:
+                wallet.balance -= recurring.amount
+            result["transaction_id"] = txn.id
 
     elif action == "skip":
         pass
-
-    elif action == "dismiss":
-        if notification.notification_type != "reminder":
-            raise HTTPException(status_code=422, detail="Dismiss chỉ áp dụng cho thông báo reminder")
 
     else:
         raise HTTPException(status_code=422, detail=f"Invalid action: {action}")
 
     if action in ["pay", "skip"]:
-        recurring.next_due_date = _next_date(recurring.next_due_date, recurring.frequency)
-        if recurring.end_date and recurring.next_due_date > recurring.end_date:
-            recurring.is_active = False
+        _advance_cycle_if_needed(recurring, due_at.date())
+        _delete_cycle_notifications(db, user_id, recurring.id, cycle_start, cycle_end)
 
-    db.delete(notification)
     db.commit()
 
     return result
+
+
+def _resolve_due_at(notification: Notification, recurring: RecurringTransaction) -> datetime:
+    remind_minutes = recurring.remind_before_minutes or 0
+    if notification.notification_type == "reminder":
+        return notification.scheduled_for + timedelta(minutes=remind_minutes)
+    return notification.scheduled_for
+
+
+def _has_manual_payment_in_cycle(
+    db: Session,
+    recurring_id: str,
+    cycle_start: datetime,
+    cycle_end: datetime,
+) -> bool:
+    paid_txn = (
+        db.query(Transaction.id)
+        .filter(
+            Transaction.recurring_id == recurring_id,
+            Transaction.source != "auto_sync",
+            Transaction.transacted_at >= cycle_start,
+            Transaction.transacted_at < cycle_end,
+        )
+        .first()
+    )
+    return paid_txn is not None
+
+
+def _advance_cycle_if_needed(recurring: RecurringTransaction, cycle_due_date: date):
+    if recurring.next_due_date <= cycle_due_date:
+        recurring.next_due_date = _next_date(cycle_due_date, recurring.frequency)
+    if recurring.end_date and recurring.next_due_date > recurring.end_date:
+        recurring.is_active = False
+
+
+def _delete_cycle_notifications(
+    db: Session,
+    user_id: str,
+    recurring_id: str,
+    cycle_start: datetime,
+    cycle_end: datetime,
+):
+    cycle_notifications = (
+        db.query(Notification)
+        .filter(
+            Notification.user_id == user_id,
+            Notification.recurring_id == recurring_id,
+            Notification.scheduled_for >= cycle_start,
+            Notification.scheduled_for < cycle_end,
+        )
+        .all()
+    )
+    for item in cycle_notifications:
+        db.delete(item)

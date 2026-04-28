@@ -211,21 +211,20 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
   }, [open, initialPrefill]);
 
   useEffect(() => {
-    if (!open || entryMode !== "transaction") {
+    if (open) {
       return;
     }
-
-    if (initialPrefill || nameTouched) {
-      return;
-    }
-
-    setName(
-      buildDefaultTransactionName({
-        transactionType: type,
-        transactionCount: transactionCountForType,
-      })
-    );
-  }, [open, entryMode, type, initialPrefill, nameTouched, transactionCountForType]);
+    setAmount("");
+    setName("");
+    setNote("");
+    setRecurringId("");
+    setAttachment(null);
+    setCategorySearch("");
+    setDateTime(toDateTimeLocalValue());
+    setNextDueDate(toDateValue());
+    setEndDate("");
+    setNoEndDateLimit(true);
+  }, [open]);
 
   const categoryTree = useMemo(() => {
     const keyword = categorySearch.trim().toLowerCase();
