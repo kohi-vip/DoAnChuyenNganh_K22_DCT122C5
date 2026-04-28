@@ -1,6 +1,8 @@
 Chi tiết chức năng tạo giao dịch:
+    Việc tạo ra tên giao dịch điền sẵn theo số thứ tự giao dịch trong tên lịch giao dịch(trong giao dịch định kỳ) và nội dung giao dịch (trong giao dịch thường) chưa có sự phân biệt trong đặt tên
     -Giao dịch định kỳ: 
         . Chưa cập nhật reload lại trang để xem thông tin ngay sau khi tạo giao dịch khiến trang không liên tục
+        . Đã thử tạo giao dịch định kỳ đúng ngày hôm này giờ này nhưng mà không thấy thực hiện thông báo--> Nên kiểm tra lại kĩ phần này
     -Giao dịch thường:
         . Chưa sửa đặt tên giao dịch không còn là trường bắt buộc, bỏ trường ghi chú chi tiết, thay trường tên giao dịch thành mô tả giao dịch trong form nhập thêm giao dịch và bảng lịch sử giao dịch 
         . Vẫn còn phần đính kèm hóa đơn trong thêm giao dịch, nên bỏ đi
