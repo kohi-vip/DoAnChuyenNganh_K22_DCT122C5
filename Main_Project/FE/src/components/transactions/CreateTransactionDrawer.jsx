@@ -216,9 +216,8 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
     }
     setAmount("");
     setName("");
-    setNote("");
+    setNameTouched(false);
     setRecurringId("");
-    setAttachment(null);
     setCategorySearch("");
     setDateTime(toDateTimeLocalValue());
     setNextDueDate(toDateValue());
