@@ -66,7 +66,7 @@ export default function OcrTab({ onPrefillTransaction }) {
     if (!result || !onPrefillTransaction) return;
     onPrefillTransaction({
       amount: result.amount,
-      note: result.note || (result.vendor ? `Hóa đơn ${result.vendor}` : "Từ hóa đơn OCR"),
+      name: result.note || (result.vendor ? `Hóa đơn ${result.vendor}` : "Từ hóa đơn OCR"),
       suggested_category: result.suggested_category,
       transacted_at: result.transacted_at || result.date,
       type: result.type || "expense",

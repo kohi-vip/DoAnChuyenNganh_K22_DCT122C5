@@ -185,7 +185,7 @@ function NotificationsPage() {
         category_id: recurring.categoryId,
         type: recurring.type,
         amount: recurring.amount,
-        note: recurring.note || item.message || item.title,
+        name: recurring.note || item.message || item.title,
         transacted_at: item.scheduledFor || new Date().toISOString(),
         onSuccess: async () => {
           try {

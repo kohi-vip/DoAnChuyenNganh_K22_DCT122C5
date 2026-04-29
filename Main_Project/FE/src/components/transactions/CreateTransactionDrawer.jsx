@@ -42,8 +42,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
   const [noEndDateLimit, setNoEndDateLimit] = useState(true);
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [remindBeforeMinutes, setRemindBeforeMinutes] = useState(30);
-  const [note, setNote] = useState("");
-  const [attachment, setAttachment] = useState(null);
 
   const [categorySearch, setCategorySearch] = useState("");
   const [toast, setToast] = useState(emptyToast);
@@ -157,10 +155,10 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
       setDateTime(toDateTimeLocalValue(new Date(prefillDate)));
     }
 
-    const prefillNote = initialPrefill.note || (initialPrefill.vendor ? `Hóa đơn ${initialPrefill.vendor}` : "");
-    if (prefillNote) {
-      setNote(prefillNote);
-      setName(prefillNote);
+    const prefillName = initialPrefill.name || (initialPrefill.vendor ? `Hóa đơn ${initialPrefill.vendor}` : "");
+    if (prefillName) {
+      setName(prefillName);
+      setNameTouched(true);
     }
 
     if (initialPrefill.category_id) {
@@ -186,9 +184,8 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
     }
     setAmount("");
     setName("");
-    setNote("");
+    setNameTouched(false);
     setRecurringId("");
-    setAttachment(null);
     setCategorySearch("");
     setDateTime(toDateTimeLocalValue());
     setNextDueDate(toDateValue());
@@ -255,9 +252,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
   const resetForNext = () => {
     setAmount("");
     setName("");
-    setNote("");
     setRecurringId("");
-    setAttachment(null);
     setCategorySearch("");
     setDateTime(toDateTimeLocalValue());
     setNextDueDate(toDateValue());
@@ -296,8 +291,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
     category_id: categoryId,
     recurring_id: recurringId || null,
     transacted_at: normalizeDateTime(dateTime),
-    note,
-    receipt_url: attachment ? `uploaded://${attachment.name}` : null,
   });
 
   const buildRecurringPayload = () => ({
@@ -305,7 +298,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
     category_id: categoryId,
     type,
     amount: Number(amount),
-    note: (note || name || "").trim() || null,
     frequency,
     start_date: startDate,
     execution_time: executionTime,
@@ -322,7 +314,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
     return {
       id: body.id || `tx_${Date.now()}`,
       name: body.name || payload.name || "Giao dịch mới",
-      description: body.note || payload.note || "",
+      description: body.name || payload.name || "",
       date: transactedAt,
       transacted_at: transactedAt,
       amount: body.amount || payload.amount,
@@ -331,7 +323,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
       categoryId: body.category_id || payload.category_id,
       source: body.source || "manual",
       is_reviewed: body.is_reviewed ?? true,
-      receipt_url: body.receipt_url || payload.receipt_url,
     };
   };
 
@@ -677,29 +668,10 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill }) {
                     </>
                   )}
 
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">Ghi chú chi tiết (Optional)</span>
-                    <textarea
-                      value={note}
-                      onChange={(event) => setNote(event.target.value)}
-                      rows={2}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                    />
-                  </label>
                 </div>
               </div>
 
-              {entryMode === "transaction" ? (
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">Đính kèm hóa đơn</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => setAttachment(event.target.files?.[0] || null)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none"
-                  />
-                </label>
-              ) : (
+              {entryMode === "transaction" ? null : (
                 <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
                   Giao dịch định kỳ sẽ tự động tạo giao dịch thật vào ngày đến hạn theo tần suất đã chọn.
                 </p>
