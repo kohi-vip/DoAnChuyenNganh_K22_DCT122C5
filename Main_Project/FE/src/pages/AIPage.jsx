@@ -75,7 +75,7 @@ export default function AIPage() {
       <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === "chat" && (
           <div className="flex h-full flex-col">
-            <JellyChatTab />
+            <JellyChatTab onPrefillTransaction={handlePrefillTransaction} />
           </div>
         )}
         {activeTab === "ocr" && (

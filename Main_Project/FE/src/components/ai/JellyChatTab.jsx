@@ -1,9 +1,207 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, ImagePlus, Loader2, Send, X } from "lucide-react";
-import { jellyChat } from "../../api/financeApi";
+import { Bot, ImagePlus, Loader2, Plus, Send, X } from "lucide-react";
+import { jellyChat, ocrReceipt, parseTransactionText } from "../../api/financeApi";
 import { useChatSession } from "../../stores/ChatSessionContext";
 
-function ChatBubble({ msg }) {
+const formatCurrencyVnd = (value) => `${new Intl.NumberFormat("vi-VN").format(Math.round(Number(value || 0)))} VND`;
+
+const formatSuggestionDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleString("vi-VN");
+};
+
+const removeVietnameseTone = (value) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+
+const shouldParseTransactionMessage = (text) => {
+  const normalized = removeVietnameseTone(text || "");
+  const hasMoney = /(\d+([.,]\d+)?\s*(k|nghin|ngan|tr|trieu|vnd|d|dong)|\d{4,})/.test(normalized);
+  const hasTransactionIntent =
+    /(tao|them|ghi|nhap|luu|chi|tieu|mua|tra|thanh toan|thu|nhan|luong|ban|chuyen khoan|an|uong|cafe|xang)/.test(
+      normalized
+    );
+
+  return hasMoney && hasTransactionIntent;
+};
+
+const buildOcrSuggestion = (result) => {
+  const amount = Number(result?.amount || 0);
+  if (!amount) {
+    return null;
+  }
+
+  const note = result.note || (result.vendor ? `Hóa đơn ${result.vendor}` : "Từ hóa đơn trong chat");
+
+  return {
+    source: "ocr",
+    title: "Jelly nhận diện hóa đơn",
+    status: "pending",
+    prefill: {
+      amount,
+      note,
+      suggested_category: result.suggested_category,
+      transacted_at: result.transacted_at || result.date,
+      type: "expense",
+      vendor: result.vendor,
+    },
+    extracted: {
+      amount,
+      vendor: result.vendor,
+      date: result.transacted_at || result.date,
+      category: result.suggested_category,
+      note,
+      needsReview: result.needs_review,
+    },
+  };
+};
+
+const buildTextSuggestion = (parsed, sourceText) => {
+  const amount = Number(parsed?.amount || 0);
+  if (!amount) {
+    return null;
+  }
+
+  const type = parsed.type === "income" || parsed.type === "expense" ? parsed.type : "expense";
+  const note = parsed.note || sourceText;
+
+  return {
+    source: "text",
+    title: "Jelly nhận diện yêu cầu tạo giao dịch",
+    status: "pending",
+    prefill: {
+      amount,
+      note,
+      suggested_category: parsed.category,
+      category: parsed.category,
+      transacted_at: parsed.transacted_at,
+      type,
+    },
+    extracted: {
+      amount,
+      type,
+      date: parsed.transacted_at,
+      category: parsed.category,
+      note,
+      needsReview: parsed.confidence != null && parsed.confidence < 0.8,
+    },
+  };
+};
+
+const detectTransactionSuggestion = async ({ text, imageFile }) => {
+  if (imageFile) {
+    const result = await ocrReceipt(imageFile);
+    return buildOcrSuggestion(result);
+  }
+
+  if (!shouldParseTransactionMessage(text)) {
+    return null;
+  }
+
+  const parsed = await parseTransactionText(text);
+  return buildTextSuggestion(parsed, text);
+};
+
+function TransactionSuggestionCard({ suggestion, onCreate, onDismiss }) {
+  if (!suggestion) {
+    return null;
+  }
+
+  if (suggestion.status === "dismissed") {
+    return (
+      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        Đã hủy gợi ý tạo giao dịch.
+      </div>
+    );
+  }
+
+  const extracted = suggestion.extracted || {};
+  const suggestedType = suggestion.prefill?.type || "expense";
+  const formattedDate = formatSuggestionDate(extracted.date);
+
+  return (
+    <div className="mt-3 rounded-xl border border-teal-100 bg-teal-50 p-3 text-slate-800">
+      <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">{suggestion.title}</p>
+      <div className="mt-2 space-y-1.5 text-xs text-slate-600">
+        <p>
+          <span className="font-medium text-slate-700">Số tiền:</span> {formatCurrencyVnd(extracted.amount)}
+        </p>
+        {extracted.vendor ? (
+          <p>
+            <span className="font-medium text-slate-700">Nguồn:</span> {extracted.vendor}
+          </p>
+        ) : null}
+        {extracted.category ? (
+          <p>
+            <span className="font-medium text-slate-700">Danh mục gợi ý:</span> {extracted.category}
+          </p>
+        ) : null}
+        {formattedDate ? (
+          <p>
+            <span className="font-medium text-slate-700">Thời gian:</span> {formattedDate}
+          </p>
+        ) : null}
+        {extracted.note ? (
+          <p>
+            <span className="font-medium text-slate-700">Ghi chú:</span> {extracted.note}
+          </p>
+        ) : null}
+        {extracted.needsReview ? (
+          <p className="rounded-lg bg-amber-50 px-2 py-1 text-amber-700">
+            Jelly chỉ điền nháp, bạn cần kiểm tra lại trước khi lưu.
+          </p>
+        ) : null}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => onCreate("expense")}
+          className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+            suggestedType === "expense"
+              ? "bg-rose-600 text-white hover:bg-rose-700"
+              : "border border-rose-200 bg-white text-rose-700 hover:bg-rose-50"
+          }`}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Tạo giao dịch chi
+        </button>
+        <button
+          type="button"
+          onClick={() => onCreate("income")}
+          className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+            suggestedType === "income"
+              ? "bg-emerald-600 text-white hover:bg-emerald-700"
+              : "border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50"
+          }`}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Tạo giao dịch thu
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+        >
+          Hủy
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChatBubble({ msg, onCreateTransaction, onDismissSuggestion }) {
   const isUser = msg.role === "user";
   return (
     <div className={`flex gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
@@ -27,6 +225,13 @@ function ChatBubble({ msg }) {
           />
         )}
         {msg.content}
+        {!isUser && msg.transactionSuggestion ? (
+          <TransactionSuggestionCard
+            suggestion={msg.transactionSuggestion}
+            onCreate={onCreateTransaction}
+            onDismiss={onDismissSuggestion}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -47,7 +252,7 @@ function TypingIndicator() {
   );
 }
 
-export default function JellyChatTab() {
+export default function JellyChatTab({ onPrefillTransaction }) {
   const { messages, setMessages, sessionId, setSessionId } = useChatSession();
   const [input, setInput] = useState("");
   const [selectedImage, setSelectedImage] = useState(null); // { file, previewUrl }
@@ -99,26 +304,78 @@ export default function JellyChatTab() {
     setIsLoading(true);
     setError(null);
 
+    const chatPromise = jellyChat({
+      message: text || "Phân tích hóa đơn trong ảnh này cho tôi.",
+      sessionId,
+      imageFile,
+    });
+
+    const suggestionPromise = detectTransactionSuggestion({ text, imageFile }).catch(() => null);
+
     try {
-      const res = await jellyChat({
-        message: text || "Phân tích hóa đơn trong ảnh này cho tôi.",
-        sessionId,
-        imageFile,
-      });
-      setSessionId(res.session_id);
-      setMessages((prev) => [...prev, { role: "assistant", content: res.reply }]);
-    } catch (err) {
-      const detail = err?.response?.data?.detail || "Jelly tạm thời không phản hồi. Thử lại sau nhé!";
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: `⚠️ ${detail}` },
-      ]);
+      const [chatResult, suggestionResult] = await Promise.allSettled([chatPromise, suggestionPromise]);
+      const suggestion = suggestionResult.status === "fulfilled" ? suggestionResult.value : null;
+
+      if (chatResult.status === "fulfilled") {
+        const res = chatResult.value;
+        setSessionId(res.session_id);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: res.reply,
+            transactionSuggestion: suggestion,
+          },
+        ]);
+      } else {
+        const detail =
+          chatResult.reason?.response?.data?.detail || "Jelly tạm thời không phản hồi. Thử lại sau nhé!";
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: suggestion
+              ? `${detail}\nMình vẫn nhận diện được thông tin giao dịch bên dưới. Vui lòng kiểm tra lại trước khi tạo.`
+              : detail,
+            transactionSuggestion: suggestion,
+          },
+        ]);
+      }
     } finally {
       setIsLoading(false);
       // Giải phóng object URL sau khi gửi xong
       if (capturedPreviewUrl) URL.revokeObjectURL(capturedPreviewUrl);
       textareaRef.current?.focus();
     }
+  };
+
+  const handleCreateFromSuggestion = (suggestion, forcedType) => {
+    if (!suggestion?.prefill || !onPrefillTransaction) {
+      return;
+    }
+
+    onPrefillTransaction({
+      ...suggestion.prefill,
+      type: forcedType,
+    });
+  };
+
+  const dismissSuggestionAt = (index) => {
+    setMessages((prev) =>
+      prev.map((msg, currentIndex) => {
+        if (currentIndex !== index || !msg.transactionSuggestion) {
+          return msg;
+        }
+
+        return {
+          ...msg,
+          transactionSuggestion: {
+            ...msg.transactionSuggestion,
+            status: "dismissed",
+          },
+        };
+      })
+    );
   };
 
   const handleKeyDown = (e) => {
@@ -133,7 +390,12 @@ export default function JellyChatTab() {
       {/* Chat messages */}
       <div className="flex-1 overflow-y-auto space-y-4 px-1 py-2">
         {messages.map((msg, i) => (
-          <ChatBubble key={i} msg={msg} />
+          <ChatBubble
+            key={i}
+            msg={msg}
+            onCreateTransaction={(type) => handleCreateFromSuggestion(msg.transactionSuggestion, type)}
+            onDismissSuggestion={() => dismissSuggestionAt(i)}
+          />
         ))}
         {isLoading && <TypingIndicator />}
         <div ref={bottomRef} />

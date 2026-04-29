@@ -308,6 +308,19 @@ export const jellyChat = async ({ message, sessionId, imageFile }) => {
 };
 
 /**
+ * Phân tích câu mô tả giao dịch tự nhiên để lấy dữ liệu prefill.
+ * @param {string} text
+ */
+export const parseTransactionText = async (text) => {
+  const res = await httpClient.post("/api/ai/parse-transaction", { text });
+  const data = res.data || {};
+  return {
+    ...data,
+    amount: data.amount != null ? Number(data.amount) : null,
+  };
+};
+
+/**
  * OCR hóa đơn — gửi file ảnh, nhận thông tin parse.
  * @param {File} file
  */
