@@ -3,6 +3,8 @@
 -- Chạy cả khúc này một lần
 -- ========================================================
 
+USE finance_app;
+
 -- Bước 1: Thêm các cột mới (nullable trước để tránh lỗi với dữ liệu cũ)
 ALTER TABLE recurring_transactions
   ADD COLUMN start_date DATE NULL AFTER frequency,

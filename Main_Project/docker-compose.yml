@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: finance_app
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./init_SQL/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./init_SQL/update_db.sql:/docker-entrypoint-initdb.d/02-update.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./BE
+    environment:
+      DATABASE_URL: mysql+pymysql://root:password@db:3306/finance_app
+      SECRET_KEY: your-secret-key-minimum-32-characters-long
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      REFRESH_TOKEN_EXPIRE_DAYS: 30
+      GROQ_API_KEY: ""
+      GOOGLE_API_KEY: ""
+      VERYFI_CLIENT_ID: ""
+      VERYFI_CLIENT_SECRET: ""
+      VERYFI_USERNAME: ""
+      VERYFI_API_KEY: ""
+      N8N_WEBHOOK_URL: ""
+      N8N_OCR_WEBHOOK_URL: ""
+      APP_ENV: development
+      CORS_ORIGINS: http://localhost:5173,http://frontend:5173
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./BE/src:/app/src
+
+  frontend:
+    build: ./FE
+    ports:
+      - "5173:5173"
+    environment:
+      BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./FE/src:/app/src
+
+volumes:
+  db_data:
