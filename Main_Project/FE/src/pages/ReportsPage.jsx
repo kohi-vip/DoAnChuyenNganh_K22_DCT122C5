@@ -201,7 +201,7 @@ function ReportsPage() {
       if (selfAmount > 0) {
         rows.push({
           id: `${parent.id}__self`,
-          name: "Khác",
+          name: `${parent.name} (danh mục cha)`,
           value: selfAmount,
           color: parent.color || "#94a3b8",
         });
