@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 const formatCurrencyVnd = (value) => `${new Intl.NumberFormat("vi-VN").format(Math.round(value))} VNĐ`;
 
 const palette = ["#2563eb", "#64748b", "#0ea5e9", "#14b8a6", "#e11d48", "#f59e0b", "#8b5cf6", "#22c55e"];
+
+const getParentDirectExpenseName = (parentName) => `${parentName} (danh mục cha)`;
+
+const tooltipFormatter = (value, name, item) => [
+  formatCurrencyVnd(value),
+  item?.payload?.tooltipName || name,
+];
 
 const normalizeDistinctColors = (rows) => {
   const used = new Set();
@@ -37,12 +44,35 @@ const recursiveTotal = (node, amountByCategoryId) => {
   return selfAmount + childrenTotal;
 };
 
+const buildDrilldownRows = (parentCategory, amountByCategoryId) => {
+  const rows = (parentCategory.children || [])
+    .map((child) => ({
+      id: child.id,
+      name: child.name,
+      detail: `Thuộc ${parentCategory.name}`,
+      tooltipName: `${parentCategory.name} > ${child.name}`,
+      value: recursiveTotal(child, amountByCategoryId),
+      color: child.color || "",
+    }))
+    .filter((row) => row.value > 0);
+
+  const parentSelfAmount = amountByCategoryId.get(parentCategory.id) || 0;
+  if (parentSelfAmount > 0) {
+    rows.push({
+      id: `${parentCategory.id}__self`,
+      name: getParentDirectExpenseName(parentCategory.name),
+      detail: "Giao dịch được gắn trực tiếp vào danh mục cha",
+      tooltipName: `${parentCategory.name} - chi tiêu trực tiếp`,
+      value: parentSelfAmount,
+      color: parentCategory.color || "",
+    });
+  }
+
+  return normalizeDistinctColors(rows);
+};
+
 function DrilldownExpensePieChart({ categories, transactions }) {
-  const [drillState, setDrillState] = useState({
-    parentId: null,
-    parentName: "",
-    data: [],
-  });
+  const [selectedParentId, setSelectedParentId] = useState(null);
 
   const expenseParents = useMemo(
     () => categories.filter((category) => category.type === "expense"),
@@ -77,27 +107,28 @@ function DrilldownExpensePieChart({ categories, transactions }) {
     return normalizeDistinctColors(rows);
   }, [expenseParents, amountByCategoryId]);
 
-  useEffect(() => {
-    if (!drillState.parentId) {
-      return;
-    }
+  const selectedParent = useMemo(
+    () => expenseParents.find((item) => item.id === selectedParentId) || null,
+    [expenseParents, selectedParentId]
+  );
 
-    const exists = parentData.some((item) => item.id === drillState.parentId);
-    if (!exists) {
-      setDrillState({ parentId: null, parentName: "", data: [] });
-    }
-  }, [drillState.parentId, parentData]);
+  const childData = useMemo(
+    () => (selectedParent ? buildDrilldownRows(selectedParent, amountByCategoryId) : []),
+    [selectedParent, amountByCategoryId]
+  );
+
+  const isDrilled = Boolean(selectedParent && childData.length > 0);
 
   const chartData = useMemo(() => {
-    if (!drillState.parentId) {
-      return parentData;
+    if (isDrilled) {
+      return childData;
     }
 
-    return drillState.data;
-  }, [drillState, parentData]);
+    return parentData;
+  }, [isDrilled, childData, parentData]);
 
   const onPieSliceClick = (_, index) => {
-    if (drillState.parentId) {
+    if (isDrilled) {
       return;
     }
 
@@ -111,35 +142,7 @@ function DrilldownExpensePieChart({ categories, transactions }) {
       return;
     }
 
-    const subRows = (parentCategory.children || [])
-      .map((child) => ({
-        id: child.id,
-        name: child.name,
-        value: recursiveTotal(child, amountByCategoryId),
-        color: child.color || "",
-      }))
-      .filter((row) => row.value > 0);
-
-    const parentSelfAmount = amountByCategoryId.get(parentCategory.id) || 0;
-    if (parentSelfAmount > 0) {
-      subRows.push({
-        id: `${parentCategory.id}__self`,
-        name: "Khác",
-        value: parentSelfAmount,
-        color: parentCategory.color || "",
-      });
-    }
-
-    const coloredSubRows = normalizeDistinctColors(subRows);
-    if (coloredSubRows.length === 0) {
-      return;
-    }
-
-    setDrillState({
-      parentId: parentCategory.id,
-      parentName: parentCategory.name,
-      data: coloredSubRows,
-    });
+    setSelectedParentId(parentCategory.id);
   };
 
   const hasData = chartData.some((item) => item.value > 0);
@@ -150,14 +153,14 @@ function DrilldownExpensePieChart({ categories, transactions }) {
         <div>
           <h3 className="text-sm font-semibold text-slate-900 md:text-base">Phân bổ chi tiêu theo danh mục</h3>
           <p className="text-xs text-slate-500">
-            {drillState.parentId ? `Chi tiết danh mục: ${drillState.parentName}` : "Nhấp vào lát cắt để drill-down theo danh mục con"}
+            {isDrilled ? `Chi tiết danh mục: ${selectedParent.name}` : "Nhấp vào lát cắt để drill-down theo danh mục con"}
           </p>
         </div>
 
-        {drillState.parentId ? (
+        {isDrilled ? (
           <button
             type="button"
-            onClick={() => setDrillState({ parentId: null, parentName: "", data: [] })}
+            onClick={() => setSelectedParentId(null)}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Quay lại
@@ -184,7 +187,7 @@ function DrilldownExpensePieChart({ categories, transactions }) {
                   <Cell key={`${entry.id}-${index}`} fill={entry.color || palette[index % palette.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => formatCurrencyVnd(value)} />
+              <Tooltip formatter={tooltipFormatter} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -193,12 +196,15 @@ function DrilldownExpensePieChart({ categories, transactions }) {
           {hasData ? (
             chartData.map((item, index) => (
               <div key={`${item.id}-${index}`} className="rounded-lg border border-slate-200 px-3 py-2">
-                <div className="mb-1 inline-flex items-center gap-2 text-sm text-slate-700">
+                <div className="mb-1 flex items-start gap-2 text-sm text-slate-700">
                   <span
-                    className="h-2.5 w-2.5 rounded-full"
+                    className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: item.color || palette[index % palette.length] }}
                   />
-                  {item.name}
+                  <div className="min-w-0">
+                    <p className="break-words font-medium leading-snug">{item.name}</p>
+                    {item.detail ? <p className="mt-0.5 text-xs leading-snug text-slate-500">{item.detail}</p> : null}
+                  </div>
                 </div>
                 <p className="text-xs font-semibold text-slate-500">{formatCurrencyVnd(item.value)}</p>
               </div>

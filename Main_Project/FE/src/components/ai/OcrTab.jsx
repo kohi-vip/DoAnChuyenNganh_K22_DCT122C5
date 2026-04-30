@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { FileImage, Loader2, Plus, UploadCloud, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, FileImage, ImagePlus, Loader2, Plus, UploadCloud, X } from "lucide-react";
 import { ocrReceipt } from "../../api/financeApi";
 
 function InfoRow({ label, value }) {
@@ -18,9 +18,13 @@ export default function OcrTab({ onPrefillTransaction }) {
   const [result, setResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
 
   const fileInputRef = useRef(null);
   const dropRef = useRef(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
 
   const handleFile = (file) => {
     if (!file) return;
@@ -28,8 +32,12 @@ export default function OcrTab({ onPrefillTransaction }) {
       setError("Chỉ hỗ trợ file ảnh (jpg, png, webp...)");
       return;
     }
+    stopCamera();
     setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    setPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(file);
+    });
     setResult(null);
     setError(null);
   };
@@ -46,6 +54,85 @@ export default function OcrTab({ onPrefillTransaction }) {
     setPreviewUrl(null);
     setResult(null);
     setError(null);
+  };
+
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setCameraOpen(false);
+    setCameraStarting(false);
+  };
+
+  useEffect(() => () => stopCamera(), []);
+
+  const openFilePicker = (event) => {
+    event?.stopPropagation();
+    fileInputRef.current?.click();
+  };
+
+  const openCamera = async (event) => {
+    event?.stopPropagation();
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("Trình duyệt không hỗ trợ camera. Vui lòng chọn ảnh có sẵn.");
+      return;
+    }
+
+    stopCamera();
+    setError(null);
+    setCameraOpen(true);
+    setCameraStarting(true);
+
+    try {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false,
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+    } catch {
+      setError("Không mở được camera. Hãy kiểm tra quyền truy cập camera hoặc chọn ảnh có sẵn.");
+      setCameraOpen(false);
+    } finally {
+      setCameraStarting(false);
+    }
+  };
+
+  const captureCameraImage = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setError("Camera chưa sẵn sàng. Vui lòng thử lại sau vài giây.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setError("Không chụp được ảnh từ camera. Vui lòng thử lại.");
+          return;
+        }
+
+        const file = new File([blob], `hoa-don-camera-${Date.now()}.jpg`, { type: "image/jpeg" });
+        handleFile(file);
+        stopCamera();
+      },
+      "image/jpeg",
+      0.92
+    );
   };
 
   const handleScan = async () => {
@@ -78,6 +165,75 @@ export default function OcrTab({ onPrefillTransaction }) {
       <p className="text-sm text-slate-500">
         Chụp hoặc tải ảnh hóa đơn để trích xuất thông tin rồi mở form giao dịch để kiểm tra lại.
       </p>
+
+      {!selectedFile ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={openCamera}
+            className="flex items-center gap-3 rounded-2xl border border-teal-200 bg-white p-4 text-left shadow-sm transition hover:border-teal-400 hover:bg-teal-50"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white">
+              <Camera className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold text-slate-800">Dùng camera</span>
+              <span className="mt-0.5 block text-xs text-slate-500">Hỗ trợ webcam laptop và camera điện thoại</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={openFilePicker}
+            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+              <ImagePlus className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold text-slate-800">Chọn ảnh có sẵn</span>
+              <span className="mt-0.5 block text-xs text-slate-500">Mở ảnh hóa đơn từ thiết bị</span>
+            </span>
+          </button>
+        </div>
+      ) : null}
+
+      {cameraOpen ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="overflow-hidden rounded-xl bg-slate-900">
+            {cameraStarting ? (
+              <div className="flex aspect-video items-center justify-center gap-2 text-sm text-white">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Đang mở camera...
+              </div>
+            ) : null}
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className={`aspect-video w-full object-cover ${cameraStarting ? "hidden" : "block"}`}
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={stopCamera}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Hủy camera
+            </button>
+            <button
+              type="button"
+              onClick={captureCameraImage}
+              disabled={cameraStarting}
+              className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-60"
+            >
+              <Camera className="h-4 w-4" />
+              Chụp hóa đơn
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Upload zone */}
       {!selectedFile ? (
