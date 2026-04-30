@@ -20,6 +20,7 @@ services:
 
   backend:
     build: ./BE
+    restart: unless-stopped
     env_file:
       - ./BE/.env
     environment:
