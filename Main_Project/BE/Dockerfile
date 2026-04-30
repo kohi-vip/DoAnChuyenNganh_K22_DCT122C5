@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-# Set locale for UTF-8 support
+
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     PYTHONIOENCODING=utf-8 \
