@@ -3,9 +3,11 @@ version: '3.8'
 services:
   db:
     image: mysql:8.0
+    command: ["mysqld", "--default-authentication-plugin=mysql_native_password", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--skip-character-set-client-handshake"]
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: finance_app
+      MYSQL_INITDB_SKIP_TZINFO: yes
     ports:
       - "3307:3306"
     volumes:
@@ -21,7 +23,7 @@ services:
   backend:
     build: ./BE
     environment:
-      DATABASE_URL: mysql+pymysql://root:password@db:3306/finance_app
+      DATABASE_URL: mysql+pymysql://root:password@db:3306/finance_app?charset=utf8mb4
       SECRET_KEY: your-secret-key-minimum-32-characters-long
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 60
