@@ -20,3 +20,7 @@ Chi tiết chức năng Trợ lý AI:
     -OCR Hóa đơn:
         .Thêm nút chức năng để người dùng chọn dùng camera hay thêm vào hình ảnh sẵn có
     * Thêm các test case cho các prompt của người dùng
+    -Phân tích AI nhanh:
+        .Phần cảnh báo chi tiêu bất thường nên cân nhắc bỏ qua hoặc nếu muốn giữ lại phải có phương pháp tính phát hiện bất thường hợp lý để đảm bảo chức năng này đủ nhạy để kiểm tra ra được đúng chức năng yêu cầu
+
+

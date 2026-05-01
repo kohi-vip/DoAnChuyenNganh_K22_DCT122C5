@@ -11,7 +11,6 @@ services:
     volumes:
       - db_data:/var/lib/mysql
       - ./init_SQL/init.sql:/docker-entrypoint-initdb.d/01-init.sql
-      - ./init_SQL/update_db.sql:/docker-entrypoint-initdb.d/02-update.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
