@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fetchRecurringTemplates } from "../../api/financeApi";
 import httpClient from "../../api/httpClient";
 import { useAppData } from "../../stores/AppDataContext";
 
@@ -21,14 +22,16 @@ const toDateValue = (date = new Date()) => {
 
 const emptyToast = { type: "", message: "" };
 
-const buildDefaultTransactionName = ({ transactionType, transactionCount }) => {
-  const safeCount = Number.isFinite(transactionCount) ? transactionCount : 0;
+const buildDefaultEntryName = ({ entryMode, transactionType, transactionCount, recurringCount }) => {
+  const sourceCount = entryMode === "recurring" ? recurringCount : transactionCount;
+  const safeCount = Number.isFinite(sourceCount) ? sourceCount : 0;
   const nextNumber = Math.max(1, safeCount + 1);
   const label = transactionType === "income" ? "thu nhập" : "chi tiêu";
-  return `giao dịch ${label} số ${nextNumber}`;
+  const prefix = entryMode === "recurring" ? "Tên lịch giao dịch" : "Mô tả giao dịch";
+  return `${prefix} ${label} số ${nextNumber}`;
 };
 
-function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
+function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSuccessToast = null }) {
   const { wallets, setWallets, categories, transactions, setTransactions, refreshAll } = useAppData();
   const modalRef = useRef(null);
   const amountInputRef = useRef(null);
@@ -54,6 +57,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
   const [categorySearch, setCategorySearch] = useState("");
   const [toast, setToast] = useState(emptyToast);
   const [submitting, setSubmitting] = useState(false);
+  const [recurringTemplatesCount, setRecurringTemplatesCount] = useState(0);
 
   const transactionCountForType = useMemo(
     () => (transactions || []).filter((transaction) => transaction.type === type).length,
@@ -80,18 +84,49 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
     }
 
     setNameTouched(false);
+  }, [open, initialPrefill]);
 
-    if (entryMode !== "transaction") {
+  useEffect(() => {
+    if (!open || initialPrefill || nameTouched) {
       return;
     }
 
     setName(
-      buildDefaultTransactionName({
+      buildDefaultEntryName({
+        entryMode,
         transactionType: type,
         transactionCount: transactionCountForType,
+        recurringCount: recurringTemplatesCount,
       })
     );
-  }, [open, initialPrefill]);
+  }, [open, initialPrefill, entryMode, type, transactionCountForType, recurringTemplatesCount, nameTouched]);
+
+  useEffect(() => {
+    if (!open || entryMode !== "recurring") {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const loadRecurringCount = async () => {
+      try {
+        const templates = await fetchRecurringTemplates();
+        if (!cancelled) {
+          setRecurringTemplatesCount(templates.filter((template) => template.type === type).length);
+        }
+      } catch {
+        if (!cancelled) {
+          setRecurringTemplatesCount(0);
+        }
+      }
+    };
+
+    loadRecurringCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, entryMode, type]);
 
   useEffect(() => {
     if (!open) {
@@ -141,7 +176,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const findCategoryIdByName = (categoryName) => {
+  const findCategoryIdByName = useCallback((categoryName) => {
     if (!categoryName) {
       return "";
     }
@@ -159,7 +194,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
     }
 
     return "";
-  };
+  }, [categories]);
 
   useEffect(() => {
     if (!open || !initialPrefill) {
@@ -201,7 +236,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
         setCategoryId(matchedCategoryId);
       }
     }
-  }, [open, initialPrefill, categories]);
+  }, [open, initialPrefill, findCategoryIdByName]);
 
   useEffect(() => {
     if (!open || initialPrefill) {
@@ -223,6 +258,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
     setNextDueDate(toDateValue());
     setEndDate("");
     setNoEndDateLimit(true);
+    setRecurringTemplatesCount(0);
   }, [open]);
 
   const categoryTree = useMemo(() => {
@@ -278,11 +314,18 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
   }, [amount]);
 
   const resetForNext = ({ additionalTransactionCount = 0 } = {}) => {
+    const nextCount =
+      entryMode === "recurring"
+        ? recurringTemplatesCount + additionalTransactionCount
+        : transactionCountForType + additionalTransactionCount;
+
     setAmount("");
     setName(
-      buildDefaultTransactionName({
+      buildDefaultEntryName({
+        entryMode,
         transactionType: type,
-        transactionCount: transactionCountForType + additionalTransactionCount,
+        transactionCount: nextCount,
+        recurringCount: nextCount,
       })
     );
     setNameTouched(false);
@@ -318,7 +361,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
   };
 
   const buildTransactionPayload = () => ({
-    name: name.trim(),
+    note: name.trim() || null,
     amount: Number(amount),
     type,
     wallet_id: walletId,
@@ -345,11 +388,12 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
   const normalizeTransaction = (apiData, payload) => {
     const body = apiData?.transaction || apiData || {};
     const transactedAt = body.transacted_at || payload.transacted_at;
+    const note = body.note || payload.note || "";
 
     return {
       id: body.id || `tx_${Date.now()}`,
-      name: body.name || payload.name || "Giao dịch mới",
-      description: body.name || payload.name || "",
+      name: note || "Giao dịch mới",
+      description: note,
       date: transactedAt,
       transacted_at: transactedAt,
       amount: body.amount || payload.amount,
@@ -364,7 +408,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
   const saveEntry = async (keepOpen) => {
     const isTransactionMode = entryMode === "transaction";
 
-    if (isTransactionMode && (!name.trim() || !amount || Number(amount) <= 0 || !walletId || !categoryId || !dateTime)) {
+    if (isTransactionMode && (!amount || Number(amount) <= 0 || !walletId || !categoryId || !dateTime)) {
       setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
       return;
     }
@@ -395,9 +439,12 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
         if (typeof initialPrefill?.onSuccess === "function") {
           initialPrefill.onSuccess(transaction);
         }
-        setToast({ type: "success", message: "Đã tạo giao dịch thành công." });
+        onSuccessToast?.("Đã tạo giao dịch thành công.", { type: "success" });
       } else {
-        setToast({ type: "success", message: "Đã tạo giao dịch định kỳ thành công." });
+        onSuccessToast?.("Đã tạo giao dịch định kỳ thành công.", {
+          type: "success",
+          reloadAfterDismiss: true,
+        });
       }
     } catch (error) {
       if (isTransactionMode && error?.response?.status === 404) {
@@ -406,7 +453,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
         if (typeof initialPrefill?.onSuccess === "function") {
           initialPrefill.onSuccess(localTransaction);
         }
-        setToast({ type: "success", message: "Đã tạo giao dịch (local mode)." });
+        onSuccessToast?.("Đã tạo giao dịch (local mode).", { type: "success" });
       } else {
         setToast({ type: "error", message: error?.response?.data?.detail || "Không thể tạo giao dịch." });
         return;
@@ -420,17 +467,13 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
     }
 
     if (keepOpen) {
-      resetForNext({ additionalTransactionCount: isTransactionMode ? 1 : 0 });
+      resetForNext({ additionalTransactionCount: 1 });
       amountInputRef.current?.focus();
       return;
     }
 
     onClose();
-    resetForNext({ additionalTransactionCount: isTransactionMode ? 1 : 0 });
-
-    if (isTransactionMode) {
-      window.location.reload();
-    }
+    resetForNext({ additionalTransactionCount: 1 });
   };
 
   if (!open) {
@@ -524,7 +567,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
 
               <label className="block">
                 <span className="mb-1 block text-sm font-medium text-slate-700">
-                  {entryMode === "transaction" ? "Nội dung giao dịch" : "Tên lịch giao dịch (Optional)"}
+                  {entryMode === "transaction" ? "Mô tả giao dịch" : "Tên lịch giao dịch (không bắt buộc)"}
                 </span>
                 <input
                   type="text"
@@ -533,8 +576,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null }) {
                     setName(event.target.value);
                     setNameTouched(true);
                   }}
-                  required={entryMode === "transaction"}
-                  placeholder={entryMode === "transaction" ? "" : "Ví dụ: Tiền nhà, Thu nhập lương..."}
+                  placeholder={entryMode === "transaction" ? "Ví dụ: Cà phê sáng, lương tháng 5..." : "Ví dụ: Tiền nhà, Thu nhập lương..."}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
                 />
               </label>
