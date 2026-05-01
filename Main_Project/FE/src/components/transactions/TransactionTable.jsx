@@ -42,7 +42,7 @@ function TransactionTable({
         <table className="min-w-[1300px] w-full border-collapse text-sm">
           <thead className="bg-slate-50 text-left text-slate-600">
             <tr>
-              <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Mô tả chi tiết</th>
+              <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Mô tả giao dịch</th>
               <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Ngày giao dịch</th>
               <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Số tiền giao dịch</th>
               <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Loại</th>
