@@ -93,6 +93,7 @@ CREATE TABLE recurring_transactions (
     category_id    CHAR(36),
     type           VARCHAR(10)   NOT NULL  COMMENT 'income | expense',
     amount         DECIMAL(18,2) NOT NULL,
+    currency      VARCHAR(10)   NOT NULL DEFAULT 'VND',
     note           TEXT,
     frequency      VARCHAR(20)   NOT NULL  COMMENT 'daily | weekly | monthly | yearly',
     start_date     DATE          NOT NULL,
