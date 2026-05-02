@@ -273,6 +273,30 @@ export const runNotificationAction = async (id, action) => {
   return res.data;
 };
 
+const normalizeTransfer = (t) => ({
+  id: t.id,
+  fromWalletId: t.from_wallet_id,
+  toWalletId: t.to_wallet_id,
+  amount: Number(t.amount ?? 0),
+  note: t.note || null,
+  transferredAt: t.transferred_at,
+});
+
+export const createTransfer = async (payload) => {
+  const res = await httpClient.post("/api/transfers", {
+    from_wallet_id: payload.fromWalletId,
+    to_wallet_id: payload.toWalletId,
+    amount: Number(payload.amount),
+    note: payload.note || null,
+  });
+  return normalizeTransfer(res.data);
+};
+
+export const fetchTransfers = async () => {
+  const res = await httpClient.get("/api/transfers");
+  return (res.data || []).map(normalizeTransfer);
+};
+
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
