@@ -4,7 +4,7 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import AuthSplitLayout from "../components/auth/AuthSplitLayout";
 import { useAuth } from "../stores/useAuth";
 import { isEmailValid, isPasswordValid } from "../utils/authSession";
-
+import loginImage from '../assets/carlos-muza-hpjSkU2UYSU-unsplash.jpg';
 function LoginPage() {
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -49,8 +49,8 @@ function LoginPage() {
 
 	return (
 		<AuthSplitLayout
+			loginImage={loginImage}
 			title="Đăng nhập"
-			subtitle="Quản lý tài chính cá nhân thông minh, an toàn và nhất quán."
 			footer={
 				<>
 					Chưa có tài khoản?{" "}
@@ -113,6 +113,7 @@ function LoginPage() {
 					{submitting ? "Đang đăng nhập..." : "Đăng nhập"}
 				</button>
 			</form>
+				
 		</AuthSplitLayout>
 	);
 }

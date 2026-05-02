@@ -4,7 +4,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import AuthSplitLayout from "../components/auth/AuthSplitLayout";
 import { useAuth } from "../stores/useAuth";
 import { isEmailValid, isPasswordValid } from "../utils/authSession";
-
+import loginImage from '../assets/micheile-henderson-ZVprbBmT8QA-unsplash.jpg';
 function SignUpPage() {
 	const navigate = useNavigate();
 	const { register, isAuthenticated } = useAuth();
@@ -53,6 +53,7 @@ function SignUpPage() {
 
 	return (
 		<AuthSplitLayout
+			loginImage={loginImage}
 			title="Đăng ký"
 			subtitle="Tạo tài khoản mới để bắt đầu quản lý thu chi hiệu quả."
 			footer={
