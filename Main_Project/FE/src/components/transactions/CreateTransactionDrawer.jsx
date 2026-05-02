@@ -77,6 +77,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
   const [fromWalletId, setFromWalletId] = useState("");
   const [toWalletId, setToWalletId] = useState("");
   const [transferNote, setTransferNote] = useState("");
+  const [transferNoteTouched, setTransferNoteTouched] = useState(false);
 
   const [categorySearch, setCategorySearch] = useState("");
   const [toast, setToast] = useState(emptyToast);
@@ -87,6 +88,14 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     () => (transactions || []).filter((transaction) => transaction.type === type).length,
     [transactions, type]
   );
+
+  const walletNameById = useMemo(() => {
+    const map = new Map();
+    wallets.forEach((wallet) => {
+      map.set(wallet.id, wallet.name);
+    });
+    return map;
+  }, [wallets]);
 
   // ── On drawer open ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -105,6 +114,16 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
       setToWalletId(wallets[1]?.id || wallets[0].id);
     }
   }, [open, wallets]);
+
+  useEffect(() => {
+    if (!open || entryMode !== "transfer" || transferNoteTouched) {
+      return;
+    }
+
+    const fromName = walletNameById.get(fromWalletId) || "ví nguồn";
+    const toName = walletNameById.get(toWalletId) || "ví đích";
+    setTransferNote(`Chuyển tiền từ ${fromName} đến ${toName}`);
+  }, [open, entryMode, fromWalletId, toWalletId, walletNameById, transferNoteTouched]);
 
   // ── Default transaction name khi chưa user chưa sửa ─────────────────────
   useEffect(() => {
@@ -183,7 +202,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose]);
 
-  // ── Toast auto-dismiss ────────────────────────────────────────────────────
   useEffect(() => {
     if (!toast.message) return;
     const timer = window.setTimeout(() => setToast(emptyToast), 2400);
@@ -253,6 +271,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
       setEndDate("");
       setNoEndDateLimit(true);
       setTransferNote("");
+      setTransferNoteTouched(false);
     }
     setAmount("");
     setName("");
@@ -264,6 +283,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     setEndDate("");
     setNoEndDateLimit(true);
     setRecurringTemplatesCount(0);
+    setTransferNoteTouched(false);
   }, [open]);
 
   // ── Category tree (filtered) ──────────────────────────────────────────────
@@ -323,6 +343,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     setEndDate("");
     setNoEndDateLimit(true);
     setTransferNote("");
+    setTransferNoteTouched(false);
     // Transfer wallets giữ nguyên giữa các lần tạo liên tiếp
   };
 
@@ -656,13 +677,16 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
                   {/* Cột phải: Nội dung + Thông báo */}
                   <div className="space-y-4">
                     <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-slate-700">Nội dung (Optional)</span>
+                      <span className="mb-1 block text-sm font-medium text-slate-700">Nội dung: </span>
                       <input
                         type="text"
                         value={transferNote}
-                        onChange={(e) => setTransferNote(e.target.value)}
+                        onChange={(e) => {
+                          setTransferNote(e.target.value);
+                          setTransferNoteTouched(true);
+                        }}
                         placeholder="Ví dụ: Chuyển tiền trả hàng tháng..."
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-700 outline-none transition focus:border-blue-500 "
                       />
                     </label>
 

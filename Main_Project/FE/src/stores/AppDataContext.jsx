@@ -1,5 +1,6 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { fetchCategories, fetchTransactions, fetchWallets } from "../api/financeApi";
+import { fetchCategories, fetchTransactions, fetchTransfers, fetchWallets } from "../api/financeApi";
 import { getLocalAppData, persistAppData } from "../utils/localDataStore";
 import { useAuth } from "./useAuth";
 
@@ -27,9 +28,65 @@ export function AppDataProvider({ children }) {
         fetchCategories(),
         fetchTransactions(),
       ]);
+      let apiTransfers = [];
+      try {
+        apiTransfers = await fetchTransfers();
+      } catch (transferError) {
+        console.warn("[AppDataContext] Không thể tải chuyển khoản, chỉ dùng giao dịch thường:", transferError?.message);
+      }
+
+      const transferHistoryRows = apiTransfers.flatMap((transfer) => {
+        const amount = Number(transfer.amount ?? 0);
+        const note = transfer.note || "Chuyển khoản nội bộ";
+        const transferredAt = transfer.transferredAt;
+
+        return [
+          {
+            id: `transfer_${transfer.id}_out`,
+            walletId: transfer.fromWalletId,
+            categoryId: "cat_transfer",
+            recurringId: null,
+            type: "transfer",
+            amount,
+            name: "Chuyển khoản nội bộ",
+            note: `${note} • Chuyển đi`,
+            description: `${note} • Chuyển đi`,
+            date: transferredAt,
+            transacted_at: transferredAt,
+            source: "transfer",
+            transferDirection: "out",
+            is_reviewed: true,
+            receipt_url: null,
+          },
+          {
+            id: `transfer_${transfer.id}_in`,
+            walletId: transfer.toWalletId,
+            categoryId: "cat_transfer",
+            recurringId: null,
+            type: "transfer",
+            amount,
+            name: "Chuyển khoản nội bộ",
+            note: `${note} • Nhận vào`,
+            description: `${note} • Nhận vào`,
+            date: transferredAt,
+            transacted_at: transferredAt,
+            source: "transfer",
+            transferDirection: "in",
+            is_reviewed: true,
+            receipt_url: null,
+          },
+        ];
+      });
+
+      const mergedTransactions = [...apiTransactions, ...transferHistoryRows].sort(
+        (left, right) =>
+          new Date(right.transacted_at || right.date || 0).getTime() -
+          new Date(left.transacted_at || left.date || 0).getTime()
+      );
+
       setWallets(apiWallets);
       setCategories(apiCategories);
-      setTransactions(apiTransactions);
+      setTransactions(mergedTransactions);
     } catch (err) {
       // Nếu API lỗi thì giữ nguyên dữ liệu localStorage đã load lúc khởi tạo
       console.warn("[AppDataContext] Không thể tải dữ liệu từ API, dùng localStorage:", err?.message);

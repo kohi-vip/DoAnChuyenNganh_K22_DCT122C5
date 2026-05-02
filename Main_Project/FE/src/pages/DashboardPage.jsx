@@ -184,7 +184,7 @@ function DashboardPage() {
     const sourceTransactions = transactions;
 
     return [...sourceTransactions]
-      .filter((item) => item.type === "income" || item.type === "expense")
+      .filter((item) => item.type === "income" || item.type === "expense" || item.type === "transfer")
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 6)
       .map((item) => {
@@ -195,11 +195,12 @@ function DashboardPage() {
 
         return {
           id: item.id,
-          name: item.name,
-          note: item.description || "",
+          name: item.name || "Chuyển khoản nội bộ",
+          note: item.description || item.note || "",
           transacted_at: item.date,
           amount: item.amount,
           type: item.type,
+          transferDirection: item.transferDirection,
           wallet_name: walletNameById.get(item.walletId) || "Không xác định",
           category_name: categoryMeta.category_name,
           category_color: categoryMeta.category_color,

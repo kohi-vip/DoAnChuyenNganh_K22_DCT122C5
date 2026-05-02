@@ -1,16 +1,6 @@
-/**
- * financeApi.js
- * Tất cả các lời gọi API liên quan đến dữ liệu tài chính:
- * ví, danh mục, giao dịch.
- * Mỗi hàm chuẩn hoá (normalize) dữ liệu trả về về định dạng FE dùng.
- */
+
 import httpClient from "./httpClient";
 
-// ─────────────────────────────────────────────
-// NORMALIZE HELPERS
-// ─────────────────────────────────────────────
-
-/** BE wallet → FE wallet */
 const normalizeWallet = (w) => ({
   id: w.id,
   name: w.name,
@@ -22,7 +12,7 @@ const normalizeWallet = (w) => ({
   is_active: w.is_active ?? true,
 });
 
-/** BE category (đã có children[]) → FE category */
+
 const normalizeCategory = (c) => ({
   id: c.id,
   name: c.name,
@@ -41,10 +31,9 @@ const normalizeCategory = (c) => ({
   })),
 });
 
-/** BE transaction → FE transaction */
+
 const normalizeTransaction = (t) => ({
   id: t.id,
-  // BE không có trường `name` riêng, dùng note làm tên hiển thị
   name: t.note || "Giao dịch",
   description: t.note || "",
   date: t.transacted_at,

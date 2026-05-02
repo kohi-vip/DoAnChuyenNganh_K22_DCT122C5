@@ -6,8 +6,17 @@ import {
   Trash2,
 } from "lucide-react";
 
-const formatCompactAmount = (amount, type) => {
+const formatCompactAmount = (amount, type, transferDirection) => {
   const value = Math.round(amount / 1000);
+  if (type === "transfer") {
+    if (transferDirection === "in") {
+      return `+${value}k`;
+    }
+    if (transferDirection === "out") {
+      return `-${value}k`;
+    }
+    return `${value}k`;
+  }
   if (type === "expense") {
     return `-${value}k`;
   }
@@ -56,6 +65,7 @@ function TransactionTable({
             {rows.map((row) => {
               const category = getCategoryMeta(row.categoryId);
               const isUnreviewedAutoSync = row.source === "auto_sync" && !row.is_reviewed;
+              const isTransferHistoryRow = row.type === "transfer";
 
               return (
                 <tr
@@ -86,7 +96,11 @@ function TransactionTable({
                       <div>
                         <p className="font-semibold text-slate-800">{row.description || row.name}</p>
                         <p className="text-xs text-slate-500">
-                          {row.source === "manual" ? "Thủ công" : row.source === "auto_sync" ? "Tự đồng bộ" : "Chuyển khoản nội bộ"}
+                          {row.source === "manual"
+                            ? "Thủ công"
+                            : row.source === "auto_sync"
+                            ? "Tự đồng bộ"
+                            : "Chuyển khoản nội bộ"}
                           {isUnreviewedAutoSync ? " • Chưa review" : ""}
                         </p>
                       </div>
@@ -102,7 +116,7 @@ function TransactionTable({
                         : "text-sky-700"
                     }`}
                   >
-                    {formatCompactAmount(row.amount, row.type)}
+                    {formatCompactAmount(row.amount, row.type, row.transferDirection)}
                   </td>
                   <td className="px-3 py-3 align-top text-slate-700">
                     {row.type === "income"
@@ -121,24 +135,28 @@ function TransactionTable({
                     </span>
                   </td>
                   <td className="px-3 py-3 align-top">
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => onEdit(row)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-700"
-                        aria-label="Sửa giao dịch"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(row)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
-                        aria-label="Xóa giao dịch"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                    {isTransferHistoryRow ? (
+                      <span className="text-xs text-slate-400">Chỉ xem</span>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(row)}
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-700"
+                          aria-label="Sửa giao dịch"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(row)}
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
+                          aria-label="Xóa giao dịch"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

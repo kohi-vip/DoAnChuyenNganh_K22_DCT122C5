@@ -1,6 +1,7 @@
 import {
   ArrowDownAZ,
   ArrowDownCircle,
+  ArrowRightLeft,
   ArrowUpCircle,
   Pencil,
   Trash2,
@@ -19,8 +20,18 @@ const formatDateTime = (isoDate) => {
   return `${hour12}:${minutes}${period} ${day}/${month}/${year}`;
 };
 
-const formatAmount = (amount, type) => {
+const formatAmount = (amount, type, transferDirection) => {
   const value = Math.round(amount / 1000);
+
+  if (type === "transfer") {
+    if (transferDirection === "in") {
+      return `+${value}k`;
+    }
+    if (transferDirection === "out") {
+      return `-${value}k`;
+    }
+    return `${value}k`;
+  }
 
   if (type === "expense") {
     return `-${value}k`;
@@ -75,6 +86,7 @@ function RecentTransactionsTable({
 
           <tbody>
             {rows.map((row) => {
+              const isTransferRow = row.type === "transfer";
               return (
                 <tr key={row.id} className="border-b border-slate-100 transition hover:bg-slate-50">
                   <td className="px-3 py-3 align-top">
@@ -90,13 +102,17 @@ function RecentTransactionsTable({
                         className={`mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full ${
                           row.type === "expense"
                             ? "bg-rose-100 text-rose-600"
-                            : "bg-emerald-100 text-emerald-600"
+                            : row.type === "income"
+                            ? "bg-emerald-100 text-emerald-600"
+                            : "bg-sky-100 text-sky-600"
                         }`}
                       >
                         {row.type === "expense" ? (
                           <ArrowDownCircle className="h-4 w-4" />
-                        ) : (
+                        ) : row.type === "income" ? (
                           <ArrowUpCircle className="h-4 w-4" />
+                        ) : (
+                          <ArrowRightLeft className="h-4 w-4" />
                         )}
                       </span>
                       <p className="font-semibold text-slate-800">{row.name}</p>
@@ -108,12 +124,16 @@ function RecentTransactionsTable({
                     className={`px-3 py-3 align-top font-semibold ${
                       row.type === "expense"
                         ? "text-rose-600"
-                        : "text-emerald-600"
+                        : row.type === "income"
+                        ? "text-emerald-600"
+                        : "text-sky-700"
                     }`}
                   >
-                    {formatAmount(row.amount, row.type)}
+                    {formatAmount(row.amount, row.type, row.transferDirection)}
                   </td>
-                  <td className="px-3 py-3 align-top text-slate-700">{row.type === "income" ? "Thu" : "Chi"}</td>
+                  <td className="px-3 py-3 align-top text-slate-700">
+                    {row.type === "income" ? "Thu" : row.type === "expense" ? "Chi" : "Chuyển khoản"}
+                  </td>
                   <td className="px-3 py-3 align-top text-slate-700">{row.wallet_name}</td>
                   <td className="px-3 py-3 align-top">
                     <span
@@ -124,24 +144,28 @@ function RecentTransactionsTable({
                     </span>
                   </td>
                   <td className="px-3 py-3 align-top">
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => onEdit(row.rawTransaction)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-700"
-                        aria-label="Sửa giao dịch"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(row.rawTransaction)}
-                        className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
-                        aria-label="Xóa giao dịch"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                    {isTransferRow ? (
+                      <span className="text-xs text-slate-400">Chỉ xem</span>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(row.rawTransaction)}
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-700"
+                          aria-label="Sửa giao dịch"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(row.rawTransaction)}
+                          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
+                          aria-label="Xóa giao dịch"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
