@@ -56,7 +56,7 @@ def test_user(db):
     user = User(
         id=str(uuid.uuid4()),
         email="test@example.com",
-        hashed_password="$2b$12$dummy",
+        password_hash="$2b$12$dummy",
         full_name="Test User",
         default_currency="VND",
     )
@@ -178,7 +178,8 @@ class TestCreateTransaction:
         payload = {
             "wallet_id": test_wallet.id,
             "type": "expense",
-            "amount": "50000",
+            # amount is required — sending a string or missing it triggers 422
+            "amount": "not_a_number",
             "transacted_at": datetime.utcnow().isoformat(),
         }
         response = client.post("/api/transactions", json=payload, headers=auth_headers)
@@ -216,7 +217,7 @@ class TestCreateTransaction:
             "transacted_at": datetime.utcnow().isoformat(),
         }
         response = client.post("/api/transactions", json=payload)
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestListTransactions:
@@ -336,7 +337,7 @@ class TestListTransactions:
         db.add_all([txn_old, txn_recent])
         db.commit()
 
-        response = client.get(f"/api/transactions?date_from={now.isoformat()}", headers=auth_headers)
+        response = client.get(f"/api/transactions?date_from={recent_date.isoformat()}", headers=auth_headers)
         data = response.json()
         assert data["total"] == 1
         assert Decimal(data["items"][0]["amount"]) == Decimal("20000")

@@ -1,7 +1,8 @@
-import { X } from "lucide-react";
+import { X, ArrowRightLeft } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchRecurringTemplates } from "../../api/financeApi";
 import httpClient from "../../api/httpClient";
+import { createTransfer } from "../../api/financeApi";
 import { useAppData } from "../../stores/AppDataContext";
 
 const toDateTimeLocalValue = (date = new Date()) => {
@@ -22,6 +23,21 @@ const toDateValue = (date = new Date()) => {
 
 const emptyToast = { type: "", message: "" };
 
+/** Các nội dung giao dịch mặc định */
+const TRANSACTION_CONTENT_PRESETS = [
+  { label: "-- Chọn nội dung --", value: "" },
+  { label: "Ăn uống", value: "Ăn uống" },
+  { label: "Di chuyển", value: "Di chuyển" },
+  { label: "Mua sắm", value: "Mua sắm" },
+  { label: "Giải trí", value: "Giải trí" },
+  { label: "Y tế", value: "Y tế" },
+  { label: "Hóa đơn", value: "Hóa đơn" },
+  { label: "Nạp tiền", value: "Nạp tiền" },
+  { label: "Lương", value: "Lương" },
+  { label: "Chuyển khoản", value: "Chuyển khoản" },
+  { label: "Khác (nhập tùy ý)", value: "__custom__" },
+];
+
 const buildDefaultEntryName = ({ entryMode, transactionType, transactionCount, recurringCount }) => {
   const sourceCount = entryMode === "recurring" ? recurringCount : transactionCount;
   const safeCount = Number.isFinite(sourceCount) ? sourceCount : 0;
@@ -36,7 +52,10 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
   const modalRef = useRef(null);
   const amountInputRef = useRef(null);
 
+  // ── Entry mode: "transaction" | "recurring" | "transfer" ──────────────────
   const [entryMode, setEntryMode] = useState("transaction");
+
+  // ── Shared state ──────────────────────────────────────────────────────────
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
   const [name, setName] = useState("");
@@ -54,6 +73,11 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [remindBeforeMinutes, setRemindBeforeMinutes] = useState(30);
 
+  // ── Transfer-specific state ────────────────────────────────────────────────
+  const [fromWalletId, setFromWalletId] = useState("");
+  const [toWalletId, setToWalletId] = useState("");
+  const [transferNote, setTransferNote] = useState("");
+
   const [categorySearch, setCategorySearch] = useState("");
   const [toast, setToast] = useState(emptyToast);
   const [submitting, setSubmitting] = useState(false);
@@ -64,27 +88,31 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     [transactions, type]
   );
 
+  // ── On drawer open ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!open) {
-      return;
+    if (!open) return;
+
+    window.setTimeout(() => amountInputRef.current?.focus(), 10);
+
+    const primaryWalletId = wallets[0]?.id || "";
+    setWalletId((cur) => cur || primaryWalletId);
+    setDateTime((cur) => cur || toDateTimeLocalValue());
+    setNextDueDate((cur) => cur || toDateValue());
+
+    // Reset transfer wallets về ví đầu tiên khi mở
+    if (wallets.length >= 1) {
+      setFromWalletId(wallets[0].id);
+      setToWalletId(wallets[1]?.id || wallets[0].id);
     }
-
-    window.setTimeout(() => {
-      amountInputRef.current?.focus();
-    }, 10);
-
-    setWalletId((current) => current || wallets[0]?.id || "");
-    setDateTime((current) => current || toDateTimeLocalValue());
-    setNextDueDate((current) => current || toDateValue());
   }, [open, wallets]);
 
+  // ── Default transaction name khi chưa user chưa sửa ─────────────────────
   useEffect(() => {
-    if (!open || initialPrefill) {
-      return;
-    }
+    if (!open || initialPrefill) return;
+    if (entryMode !== "transaction") return;
 
     setNameTouched(false);
-  }, [open, initialPrefill]);
+  }, [open, initialPrefill, entryMode]);
 
   useEffect(() => {
     if (!open || initialPrefill || nameTouched) {
@@ -101,6 +129,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     );
   }, [open, initialPrefill, entryMode, type, transactionCountForType, recurringTemplatesCount, nameTouched]);
 
+  // ── Keyboard trap ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open || entryMode !== "recurring") {
       return undefined;
@@ -128,38 +157,25 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     };
   }, [open, entryMode, type]);
 
+  // ── Keyboard trap ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
+    if (!open) return undefined;
 
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        onClose();
-        return;
-      }
-
-      if (event.key !== "Tab") {
-        return;
-      }
+      if (event.key === "Escape") { onClose(); return; }
+      if (event.key !== "Tab") return;
 
       const focusable = modalRef.current?.querySelectorAll(
         "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
       );
-
-      if (!focusable || focusable.length === 0) {
-        return;
-      }
+      if (!focusable || focusable.length === 0) return;
 
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-
       if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
+        event.preventDefault(); last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
+        event.preventDefault(); first.focus();
       }
     };
 
@@ -167,11 +183,9 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose]);
 
+  // ── Toast auto-dismiss ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!toast.message) {
-      return;
-    }
-
+    if (!toast.message) return;
     const timer = window.setTimeout(() => setToast(emptyToast), 2400);
     return () => window.clearTimeout(timer);
   }, [toast]);
@@ -183,44 +197,28 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
 
     const normalized = categoryName.trim().toLowerCase();
     for (const parent of categories) {
-      if ((parent.name || "").trim().toLowerCase() === normalized) {
-        return parent.id;
-      }
-
-      const child = (parent.children || []).find((item) => (item.name || "").trim().toLowerCase() === normalized);
-      if (child) {
-        return child.id;
-      }
+      if ((parent.name || "").trim().toLowerCase() === normalized) return parent.id;
+      const child = (parent.children || []).find(
+        (item) => (item.name || "").trim().toLowerCase() === normalized
+      );
+      if (child) return child.id;
     }
-
     return "";
   }, [categories]);
 
+  // ── Prefill từ AI shortcut ───────────────────────────────────────────────
   useEffect(() => {
-    if (!open || !initialPrefill) {
-      return;
-    }
+    if (!open || !initialPrefill) return;
 
     setEntryMode("transaction");
+    setAmount(String(initialPrefill.amount || ""));
+    setType(initialPrefill.type === "income" || initialPrefill.type === "expense" ? initialPrefill.type : "expense");
 
-    if (initialPrefill.recurring_id) {
-      setRecurringId(initialPrefill.recurring_id);
-    }
-
-    if (initialPrefill.amount) {
-      setAmount(String(initialPrefill.amount));
-    }
-    if (initialPrefill.type === "income" || initialPrefill.type === "expense") {
-      setType(initialPrefill.type);
-    }
-    if (initialPrefill.wallet_id) {
-      setWalletId(initialPrefill.wallet_id);
-    }
+    if (initialPrefill.wallet_id) setWalletId(initialPrefill.wallet_id);
+    if (initialPrefill.recurring_id) setRecurringId(initialPrefill.recurring_id);
 
     const prefillDate = initialPrefill.transacted_at || initialPrefill.date;
-    if (prefillDate) {
-      setDateTime(toDateTimeLocalValue(new Date(prefillDate)));
-    }
+    if (prefillDate) setDateTime(toDateTimeLocalValue(new Date(prefillDate)));
 
     const prefillNote = initialPrefill.note || (initialPrefill.vendor ? `Hóa đơn ${initialPrefill.vendor}` : "");
     if (prefillNote) {
@@ -231,23 +229,30 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     if (initialPrefill.category_id) {
       setCategoryId(initialPrefill.category_id);
     } else {
-      const matchedCategoryId = findCategoryIdByName(initialPrefill.suggested_category || initialPrefill.category);
-      if (matchedCategoryId) {
-        setCategoryId(matchedCategoryId);
-      }
+      const matchedId = findCategoryIdByName(initialPrefill.suggested_category || initialPrefill.category);
+      if (matchedId) setCategoryId(matchedId);
     }
   }, [open, initialPrefill, findCategoryIdByName]);
 
+  // ── Reset recurring khi chuyển mode ───────────────────────────────────────
   useEffect(() => {
-    if (!open || initialPrefill) {
-      return;
-    }
+    if (!open || initialPrefill) return;
     setRecurringId("");
   }, [open, initialPrefill]);
 
+  // ── Reset form khi đóng ──────────────────────────────────────────────────
   useEffect(() => {
-    if (open) {
-      return;
+    if (!open) {
+      setAmount("");
+      setName("");
+      setNameTouched(false);
+      setRecurringId("");
+      setCategorySearch("");
+      setDateTime(toDateTimeLocalValue());
+      setNextDueDate(toDateValue());
+      setEndDate("");
+      setNoEndDateLimit(true);
+      setTransferNote("");
     }
     setAmount("");
     setName("");
@@ -261,55 +266,37 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     setRecurringTemplatesCount(0);
   }, [open]);
 
+  // ── Category tree (filtered) ──────────────────────────────────────────────
   const categoryTree = useMemo(() => {
     const keyword = categorySearch.trim().toLowerCase();
-
     return categories
       .filter((parent) => parent.type === type)
       .map((parent) => {
-        const children = (parent.children || []).filter((child) => {
-          if (!keyword) {
-            return true;
-          }
-
-          return child.name.toLowerCase().includes(keyword);
-        });
-
+        const children = (parent.children || []).filter(
+          (child) => !keyword || child.name.toLowerCase().includes(keyword)
+        );
         const parentMatched = parent.name.toLowerCase().includes(keyword);
         if (!keyword || parentMatched || children.length > 0) {
           return { ...parent, children };
         }
-
         return null;
       })
       .filter(Boolean);
   }, [categories, categorySearch, type]);
 
   const selectedCategoryLabel = useMemo(() => {
-    if (!categoryId) {
-      return "Chưa chọn";
-    }
-
+    if (!categoryId) return "Chưa chọn";
     for (const parent of categories) {
-      if (parent.id === categoryId) {
-        return parent.name;
-      }
-
+      if (parent.id === categoryId) return parent.name;
       const child = (parent.children || []).find((item) => item.id === categoryId);
-      if (child) {
-        return `${parent.name} / ${child.name}`;
-      }
+      if (child) return `${parent.name} / ${child.name}`;
     }
-
     return "Chưa chọn";
   }, [categories, categoryId]);
 
   const formattedAmount = useMemo(() => {
     const numeric = Number(amount || 0);
-    if (!numeric) {
-      return "0 VND";
-    }
-
+    if (!numeric) return "0 VND";
     return `${new Intl.NumberFormat("vi-VN").format(numeric)} VND`;
   }, [amount]);
 
@@ -335,20 +322,17 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     setNextDueDate(toDateValue());
     setEndDate("");
     setNoEndDateLimit(true);
+    setTransferNote("");
+    // Transfer wallets giữ nguyên giữa các lần tạo liên tiếp
   };
 
   const applyTransactionToLocalStore = (transaction) => {
     setTransactions((current) => [transaction, ...current]);
-
     const impact = transaction.type === "income" ? transaction.amount : -transaction.amount;
-
     setWallets((current) =>
       current.map((wallet) =>
         wallet.id === transaction.walletId
-          ? {
-              ...wallet,
-              balance: wallet.balance + impact,
-            }
+          ? { ...wallet, balance: wallet.balance + impact }
           : wallet
       )
     );
@@ -360,19 +344,20 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     return value.slice(0, 19);
   };
 
+  // ── Payload builders ──────────────────────────────────────────────────────
   const buildTransactionPayload = () => ({
     note: name.trim() || null,
     amount: Number(amount),
     type,
     wallet_id: walletId,
-    category_id: categoryId,
+    category_id: categoryId || null,
     recurring_id: recurringId || null,
     transacted_at: normalizeDateTime(dateTime),
   });
 
   const buildRecurringPayload = () => ({
     wallet_id: walletId,
-    category_id: categoryId,
+    category_id: categoryId || null,
     type,
     amount: Number(amount),
     note: name.trim() || null,
@@ -405,49 +390,81 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     };
   };
 
+  // ── Main save handler ─────────────────────────────────────────────────────
   const saveEntry = async (keepOpen) => {
-    const isTransactionMode = entryMode === "transaction";
+    const isTransaction = entryMode === "transaction";
+    const isRecurring = entryMode === "recurring";
+    const isTransfer = entryMode === "transfer";
 
-    if (isTransactionMode && (!amount || Number(amount) <= 0 || !walletId || !categoryId || !dateTime)) {
-      setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
-      return;
+    // ── Validation ──────────────────────────────────────────────────────────
+    if (isTransaction) {
+      if (!amount || Number(amount) <= 0 || !walletId || !dateTime) {
+        setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
+        return;
+      }
+      if (!nameTouched || !name.trim()) {
+        setToast({ type: "error", message: "Vui lòng chọn hoặc nhập nội dung giao dịch." });
+        return;
+      }
     }
 
-    if (!isTransactionMode && (!amount || Number(amount) <= 0 || !walletId || !categoryId || !frequency || !nextDueDate)) {
-      setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
-      return;
+    if (isRecurring) {
+      if (!amount || Number(amount) <= 0 || !walletId || !frequency || !nextDueDate) {
+        setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
+        return;
+      }
+      if (startDate && nextDueDate && nextDueDate < startDate) {
+        setToast({ type: "error", message: "Ngày bắt đầu kỳ đầu phải lớn hơn hoặc bằng ngày bắt đầu." });
+        return;
+      }
     }
 
-    if (!isTransactionMode && startDate && nextDueDate && nextDueDate < startDate) {
-      setToast({
-        type: "error",
-        message: "Ngày bắt đầu kỳ đầu phải lớn hơn hoặc bằng ngày bắt đầu.",
-      });
-      return;
+    if (isTransfer) {
+      if (!amount || Number(amount) <= 0 || !fromWalletId || !toWalletId) {
+        setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin chuyển ví." });
+        return;
+      }
+      if (fromWalletId === toWalletId) {
+        setToast({ type: "error", message: "Ví nguồn và ví đích không được trùng nhau." });
+        return;
+      }
+      const fromWalletBalance = wallets.find((w) => w.id === fromWalletId)?.balance || 0;
+      if (Number(amount) > fromWalletBalance) {
+        setToast({ type: "error", message: "Số dư ví nguồn không đủ." });
+        return;
+      }
     }
 
-    const payload = isTransactionMode ? buildTransactionPayload() : buildRecurringPayload();
-    const endpoint = isTransactionMode ? "/api/transactions" : "/api/recurring";
-
+    // ── Submit ──────────────────────────────────────────────────────────────
     try {
       setSubmitting(true);
-      const response = await httpClient.post(endpoint, payload);
 
-      if (isTransactionMode) {
+      if (isTransaction) {
+        const payload = buildTransactionPayload();
+        const response = await httpClient.post("/api/transactions", payload);
         const transaction = normalizeTransaction(response.data, payload);
         applyTransactionToLocalStore(transaction);
         if (typeof initialPrefill?.onSuccess === "function") {
           initialPrefill.onSuccess(transaction);
         }
-        onSuccessToast?.("Đã tạo giao dịch thành công.", { type: "success" });
-      } else {
-        onSuccessToast?.("Đã tạo giao dịch định kỳ thành công.", {
-          type: "success",
-          reloadAfterDismiss: true,
-        });
+        setToast({ type: "success", message: "Đã tạo giao dịch thành công." });
+      } else if (isRecurring) {
+        const payload = buildRecurringPayload();
+        await httpClient.post("/api/recurring", payload);
+        setToast({ type: "success", message: "Đã tạo giao dịch định kỳ thành công." });
+      } else if (isTransfer) {
+        const payload = {
+          fromWalletId: fromWalletId,
+          toWalletId: toWalletId,
+          amount: Number(amount),
+          note: transferNote.trim() || null,
+        };
+        await createTransfer(payload);
+        setToast({ type: "success", message: "Đã chuyển tiền giữa các ví thành công." });
       }
     } catch (error) {
-      if (isTransactionMode && error?.response?.status === 404) {
+      if (isTransaction && error?.response?.status === 404) {
+        const payload = buildTransactionPayload();
         const localTransaction = normalizeTransaction({}, payload);
         applyTransactionToLocalStore(localTransaction);
         if (typeof initialPrefill?.onSuccess === "function") {
@@ -462,23 +479,65 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
       setSubmitting(false);
     }
 
-    if (isTransactionMode) {
-      await refreshAll();
-    }
+    // ── Reload đồng bộ cho TẤT CẢ các loại giao dịch ─────────────────────
+    await refreshAll();
 
     if (keepOpen) {
-      resetForNext({ additionalTransactionCount: 1 });
+      resetForNext({ additionalTransactionCount: isTransaction ? 1 : 0 });
       amountInputRef.current?.focus();
       return;
     }
 
     onClose();
-    resetForNext({ additionalTransactionCount: 1 });
+    resetForNext({ additionalTransactionCount: isTransaction ? 1 : 0 });
+
+    if (isTransaction) {
+      window.location.reload();
+    }
   };
 
-  if (!open) {
-    return null;
-  }
+  if (!open) return null;
+
+  // ── Render helpers ─────────────────────────────────────────────────────────
+  const renderPresetSelect = () => {
+    const isCustom = !TRANSACTION_CONTENT_PRESETS.some((p) => p.value === name && p.value !== "__custom__");
+    const showCustomInput = name === "__custom__" || (isCustom && name && name !== "" && !TRANSACTION_CONTENT_PRESETS.slice(1, -1).some((p) => p.value === name));
+
+    return (
+      <>
+        <select
+          value={TRANSACTION_CONTENT_PRESETS.some((p) => p.value === name) ? name : "__custom__"}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === "__custom__") {
+              setName("");
+              setNameTouched(true);
+            } else {
+              setName(val);
+              setNameTouched(true);
+            }
+          }}
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+        >
+          {TRANSACTION_CONTENT_PRESETS.map((p) => (
+            <option key={p.value} value={p.value}>{p.label}</option>
+          ))}
+        </select>
+        {showCustomInput && (
+          <input
+            type="text"
+            value={name === "__custom__" ? "" : name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setNameTouched(true);
+            }}
+            placeholder="Nhập nội dung tùy ý..."
+            className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+          />
+        )}
+      </>
+    );
+  };
 
   return (
     <div
@@ -492,6 +551,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex h-full flex-col">
+          {/* ── Header ────────────────────────────────────────────────────── */}
           <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
             <h2 className="text-lg font-semibold text-slate-900">Thêm giao dịch</h2>
             <button
@@ -504,8 +564,9 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
             </button>
           </div>
 
+          {/* ── Mode switcher ─────────────────────────────────────────────── */}
           <div className="px-5 pt-3">
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+            <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1">
               <button
                 type="button"
                 onClick={() => setEntryMode("transaction")}
@@ -524,14 +585,28 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
               >
                 Giao dịch định kỳ
               </button>
+              <button
+                type="button"
+                onClick={() => setEntryMode("transfer")}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                  entryMode === "transfer" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"
+                }`}
+              >
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                Chuyển ví
+              </button>
             </div>
           </div>
+
+          {/* ── Form body ─────────────────────────────────────────────────── */}
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
 
-            <section className="space-y-4">
-              <div className="mx-auto w-full max-w-xl space-y-4">
+            {/* ── Transfer mode ───────────────────────────────────────────── */}
+            {entryMode === "transfer" && (
+              <section className="mx-auto w-full max-w-xl space-y-4">
+                {/* Số tiền chuyển */}
                 <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">Số tiền</span>
+                  <span className="mb-1 block text-sm font-medium text-slate-700">Số tiền chuyển</span>
                   <input
                     ref={amountInputRef}
                     type="number"
@@ -543,230 +618,313 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
                   <p className="mt-1 text-xs text-slate-500">{formattedAmount}</p>
                 </label>
 
-                <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setType("expense")}
-                    className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                      type === "expense" ? "bg-white text-rose-600 shadow-sm" : "text-slate-600"
-                    }`}
-                  >
-                    Chi tiêu
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setType("income")}
-                    className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                      type === "income" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600"
-                    }`}
-                  >
-                    Thu nhập
-                  </button>
-                </div>
-              </div>
-
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">
-                  {entryMode === "transaction" ? "Mô tả giao dịch" : "Tên lịch giao dịch (không bắt buộc)"}
-                </span>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(event) => {
-                    setName(event.target.value);
-                    setNameTouched(true);
-                  }}
-                  placeholder={entryMode === "transaction" ? "Ví dụ: Cà phê sáng, lương tháng 5..." : "Ví dụ: Tiền nhà, Thu nhập lương..."}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                />
-              </label>
-
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="space-y-4">
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">Ví</span>
-                    <select
-                      value={walletId}
-                      onChange={(event) => setWalletId(event.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                    >
-                      {wallets.map((wallet) => (
-                        <option key={wallet.id} value={wallet.id}>
-                          {wallet.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  {entryMode === "transaction" ? (
+                {/* Từ ví & Sang ví + Nội dung */}
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  {/* Cột trái: Từ ví, Sang ví */}
+                  <div className="space-y-4">
                     <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-slate-700">Ngày</span>
+                      <span className="mb-1 block text-sm font-medium text-slate-700">Từ ví</span>
+                      <select
+                        value={fromWalletId}
+                        onChange={(e) => setFromWalletId(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                      >
+                        {wallets.map((wallet) => (
+                          <option key={wallet.id} value={wallet.id}>
+                            {wallet.name} ({new Intl.NumberFormat("vi-VN").format(wallet.balance)} VND)
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-slate-700">Sang ví</span>
+                      <select
+                        value={toWalletId}
+                        onChange={(e) => setToWalletId(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                      >
+                        {wallets.map((wallet) => (
+                          <option key={wallet.id} value={wallet.id}>
+                            {wallet.name} ({new Intl.NumberFormat("vi-VN").format(wallet.balance)} VND)
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  {/* Cột phải: Nội dung + Thông báo */}
+                  <div className="space-y-4">
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-slate-700">Nội dung (Optional)</span>
                       <input
-                        type="datetime-local"
-                        value={dateTime}
-                        onChange={(event) => setDateTime(event.target.value)}
+                        type="text"
+                        value={transferNote}
+                        onChange={(e) => setTransferNote(e.target.value)}
+                        placeholder="Ví dụ: Chuyển tiền trả hàng tháng..."
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
                       />
                     </label>
-                  ) : (
-                    <>
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">Ngày bắt đầu</span>
-                        <input
-                          type="date"
-                          value={startDate}
-                          onChange={(event) => {
-                            const newStartDate = event.target.value;
-                            setStartDate(newStartDate);
-                            if (!nextDueDate || nextDueDate < newStartDate) {
-                              setNextDueDate(newStartDate);
-                            }
-                          }}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                        />
-                      </label>
 
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">Tần suất</span>
-                        <select
-                          value={frequency}
-                          onChange={(event) => setFrequency(event.target.value)}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                        >
-                          <option value="daily">Hằng ngày</option>
-                          <option value="weekly">Hằng tuần</option>
-                          <option value="monthly">Hằng tháng</option>
-                          <option value="yearly">Hằng năm</option>
-                        </select>
-                      </label>
+                    <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                      Số dư ví nguồn sẽ bị trừ, số dư ví đích sẽ được cộng tương ứng.
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
 
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">Giờ thực hiện</span>
-                        <input
-                          type="time"
-                          value={executionTime}
-                          onChange={(event) => setExecutionTime(event.target.value)}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                        />
-                      </label>
+            {/* ── Transaction / Recurring mode ────────────────────────────── */}
+            {entryMode !== "transfer" && (
+              <section className="space-y-4">
+                <div className="mx-auto w-full max-w-xl space-y-4">
+                  {/* Số tiền */}
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">Số tiền</span>
+                    <input
+                      ref={amountInputRef}
+                      type="number"
+                      min="1"
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-2xl font-semibold text-slate-900 outline-none transition focus:border-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">{formattedAmount}</p>
+                  </label>
 
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">Ngày bắt đầu kỳ đầu</span>
-                        <input
-                          type="date"
-                          value={nextDueDate}
-                          onChange={(event) => setNextDueDate(event.target.value)}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                        />
-                      </label>
+                  {/* Loại thu / chi */}
+                  {entryMode === "transaction" && (
+                    <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setType("expense")}
+                        className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                          type === "expense" ? "bg-white text-rose-600 shadow-sm" : "text-slate-600"
+                        }`}
+                      >
+                        Chi tiêu
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setType("income")}
+                        className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                          type === "income" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-600"
+                        }`}
+                      >
+                        Thu nhập
+                      </button>
+                    </div>
+                  )}
 
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">Ngày kết thúc (Optional)</span>
-                        <input
-                          type="date"
-                          value={endDate}
-                          onChange={(event) => {
-                            setEndDate(event.target.value);
-                            setNoEndDateLimit(false);
-                          }}
-                          disabled={noEndDateLimit}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                        />
-                      </label>
+                  {/* Nội dung giao dịch — preset dropdown */}
+                  {entryMode === "transaction" && (
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-slate-700">Nội dung giao dịch</span>
+                      {renderPresetSelect()}
+                    </label>
+                  )}
 
-                      <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={noEndDateLimit}
-                          onChange={(event) => {
-                            const checked = event.target.checked;
-                            setNoEndDateLimit(checked);
-                            if (checked) {
-                              setEndDate("");
-                            }
-                          }}
-                        />
-                        Không giới hạn thời gian giao dịch định kỳ
-                      </label>
-                    </>
+                  {/* Tên lịch giao dịch định kỳ */}
+                  {entryMode === "recurring" && (
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-slate-700">
+                        Tên lịch giao dịch (Optional)
+                      </span>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          setNameTouched(true);
+                        }}
+                        placeholder="Ví dụ: Tiền nhà, Thu nhập lương..."
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                      />
+                    </label>
                   )}
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">Danh mục</label>
-                    <input
-                      value={categorySearch}
-                      onChange={(event) => setCategorySearch(event.target.value)}
-                      placeholder="Tìm danh mục..."
-                      className="mb-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-                    />
-                    <div className="max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
-                      {categoryTree.map((parent) => (
-                        <div key={parent.id} className="mb-1 last:mb-0">
-                          <button
-                            type="button"
-                            onClick={() => setCategoryId(parent.id)}
-                            className={`w-full rounded-lg px-2 py-1.5 text-left text-sm ${
-                              categoryId === parent.id ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-100"
-                            }`}
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  {/* Cột trái: Ví, Ngày / recurring fields */}
+                  <div className="space-y-4">
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-slate-700">Ví</span>
+                      <select
+                        value={walletId}
+                        onChange={(e) => setWalletId(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                      >
+                        {wallets.map((wallet) => (
+                          <option key={wallet.id} value={wallet.id}>{wallet.name}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {entryMode === "transaction" ? (
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-slate-700">Ngày</span>
+                        <input
+                          type="datetime-local"
+                          value={dateTime}
+                          onChange={(e) => setDateTime(e.target.value)}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                        />
+                      </label>
+                    ) : (
+                      <>
+                        <label className="block">
+                          <span className="mb-1 block text-sm font-medium text-slate-700">Ngày bắt đầu</span>
+                          <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setStartDate(val);
+                              if (!nextDueDate || nextDueDate < val) setNextDueDate(val);
+                            }}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-1 block text-sm font-medium text-slate-700">Tần suất</span>
+                          <select
+                            value={frequency}
+                            onChange={(e) => setFrequency(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
                           >
-                            {parent.name}
-                          </button>
-                          {(parent.children || []).map((child) => (
-                            <button
-                              key={child.id}
-                              type="button"
-                              onClick={() => setCategoryId(child.id)}
-                              className={`mt-1 w-full rounded-lg px-2 py-1.5 pl-6 text-left text-sm ${
-                                categoryId === child.id ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100"
-                              }`}
-                            >
-                              {child.name}
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">Đã chọn: {selectedCategoryLabel}</p>
+                            <option value="daily">Hằng ngày</option>
+                            <option value="weekly">Hằng tuần</option>
+                            <option value="monthly">Hằng tháng</option>
+                            <option value="yearly">Hằng năm</option>
+                          </select>
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-1 block text-sm font-medium text-slate-700">Giờ thực hiện</span>
+                          <input
+                            type="time"
+                            value={executionTime}
+                            onChange={(e) => setExecutionTime(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-1 block text-sm font-medium text-slate-700">Ngày bắt đầu kỳ đầu</span>
+                          <input
+                            type="date"
+                            value={nextDueDate}
+                            onChange={(e) => setNextDueDate(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-1 block text-sm font-medium text-slate-700">Ngày kết thúc (Optional)</span>
+                          <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => { setEndDate(e.target.value); setNoEndDateLimit(false); }}
+                            disabled={noEndDateLimit}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                          />
+                        </label>
+
+                        <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={noEndDateLimit}
+                            onChange={(e) => {
+                              if (e.target.checked) { setEndDate(""); }
+                              setNoEndDateLimit(e.target.checked);
+                            }}
+                          />
+                          Không giới hạn thời gian giao dịch định kỳ
+                        </label>
+                      </>
+                    )}
                   </div>
 
-                  {entryMode === "recurring" && (
-                    <>
-                      <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  {/* Cột phải: Danh mục + notification settings */}
+                  <div className="space-y-4">
+                    {entryMode === "transaction" && (
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-slate-700">Danh mục</label>
                         <input
-                          type="checkbox"
-                          checked={notificationEnabled}
-                          onChange={(event) => setNotificationEnabled(event.target.checked)}
+                          value={categorySearch}
+                          onChange={(e) => setCategorySearch(e.target.value)}
+                          placeholder="Tìm danh mục..."
+                          className="mb-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
                         />
-                        Bật thông báo nhắc
-                      </label>
+                        <div className="max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
+                          {categoryTree.map((parent) => (
+                            <div key={parent.id} className="mb-1 last:mb-0">
+                              <button
+                                type="button"
+                                onClick={() => setCategoryId(parent.id)}
+                                className={`w-full rounded-lg px-2 py-1.5 text-left text-sm ${
+                                  categoryId === parent.id ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-100"
+                                }`}
+                              >
+                                {parent.name}
+                              </button>
+                              {(parent.children || []).map((child) => (
+                                <button
+                                  key={child.id}
+                                  type="button"
+                                  onClick={() => setCategoryId(child.id)}
+                                  className={`mt-1 w-full rounded-lg px-2 py-1.5 pl-6 text-left text-sm ${
+                                    categoryId === child.id ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  {child.name}
+                                </button>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">Đã chọn: {selectedCategoryLabel}</p>
+                      </div>
+                    )}
 
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">Nhắc trước (phút)</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={remindBeforeMinutes}
-                          onChange={(event) => setRemindBeforeMinutes(Number(event.target.value))}
-                          disabled={!notificationEnabled}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                        />
-                      </label>
-                    </>
-                  )}
+                    {entryMode === "recurring" && (
+                      <>
+                        <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={notificationEnabled}
+                            onChange={(e) => setNotificationEnabled(e.target.checked)}
+                          />
+                          Bật thông báo nhắc
+                        </label>
 
+                        <label className="block">
+                          <span className="mb-1 block text-sm font-medium text-slate-700">Nhắc trước (phút)</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={remindBeforeMinutes}
+                            onChange={(e) => setRemindBeforeMinutes(Number(e.target.value))}
+                            disabled={!notificationEnabled}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                          />
+                        </label>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {entryMode === "recurring" ? (
-                <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                  Giao dịch định kỳ sẽ tự động tạo giao dịch thật vào ngày đến hạn theo tần suất đã chọn.
-                </p>
-              ) : null}
-            </section>
+                {entryMode === "recurring" && (
+                  <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                    Giao dịch định kỳ sẽ tự động tạo giao dịch thật vào ngày đến hạn theo tần suất đã chọn.
+                  </p>
+                )}
+              </section>
+            )}
           </div>
 
+          {/* ── Footer buttons ────────────────────────────────────────────── */}
           <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4">
             <button
               type="button"
@@ -795,7 +953,8 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
         </div>
       </div>
 
-      {toast.message ? (
+      {/* ── Toast ─────────────────────────────────────────────────────────── */}
+      {toast.message && (
         <div className="pointer-events-none fixed bottom-5 right-5 z-[60]">
           <div
             className={`rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-lg ${
@@ -805,7 +964,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
             {toast.message}
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
