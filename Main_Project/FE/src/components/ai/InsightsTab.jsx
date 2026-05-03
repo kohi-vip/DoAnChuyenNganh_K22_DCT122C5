@@ -35,22 +35,8 @@ export default function InsightsTab() {
     }
   };
 
-  const loadAnomalies = async () => {
-    setLoadingAnomalies(true);
-    setErrorAnomalies(null);
-    try {
-      const data = await fetchAiAnomalies();
-      setAnomalies(data);
-    } catch (err) {
-      setErrorAnomalies(err?.response?.data?.detail || "Không tải được cảnh báo.");
-    } finally {
-      setLoadingAnomalies(false);
-    }
-  };
-
   useEffect(() => {
     loadInsights();
-    loadAnomalies();
   }, []);
 
   return (
@@ -98,62 +84,6 @@ export default function InsightsTab() {
                 </ul>
               </div>
             )}
-          </div>
-        ) : null}
-      </SectionCard>
-
-      {/* Cảnh báo chi tiêu bất thường */}
-      <SectionCard icon={AlertTriangle} title="Cảnh báo chi tiêu bất thường" color="text-amber-500">
-        {loadingAnomalies ? (
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Đang kiểm tra...
-          </div>
-        ) : errorAnomalies ? (
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-rose-600">{errorAnomalies}</p>
-            <button
-              type="button"
-              onClick={loadAnomalies}
-              className="ml-3 flex items-center gap-1 text-xs text-blue-600 hover:underline"
-            >
-              <RefreshCw className="h-3 w-3" /> Thử lại
-            </button>
-          </div>
-        ) : anomalies?.total_found === 0 ? (
-          <p className="text-sm text-emerald-600">
-            Không phát hiện chi tiêu bất thường. Chi tiêu của bạn khá ổn định!
-          </p>
-        ) : anomalies?.anomalies?.length > 0 ? (
-          <div className="space-y-3">
-            {anomalies.anomalies.map((item, i) => (
-              <div
-                key={i}
-                className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-800">{item.category}</span>
-                  <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                    Z = {item.z_score}
-                  </span>
-                </div>
-                <div className="mt-1 flex gap-4 text-xs text-slate-500">
-                  <span>
-                    Số tiền:{" "}
-                    <strong className="text-slate-700">
-                      {Number(item.amount).toLocaleString("vi-VN")} đ
-                    </strong>
-                  </span>
-                  <span>
-                    Trung bình:{" "}
-                    <strong className="text-slate-700">
-                      {Number(item.mean).toLocaleString("vi-VN")} đ
-                    </strong>
-                  </span>
-                </div>
-                <p className="mt-1.5 text-sm text-slate-600">{item.description}</p>
-              </div>
-            ))}
           </div>
         ) : null}
       </SectionCard>

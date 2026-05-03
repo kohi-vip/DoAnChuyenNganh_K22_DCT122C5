@@ -60,14 +60,14 @@ function RecentTransactionsTable({
         <table className="min-w-[1200px] w-full border-collapse text-sm">
           <thead className="bg-slate-50 text-left text-slate-600">
             <tr>
-              <th className="border-b border-slate-200 px-3 py-3">
+              {/* <th className="border-b border-slate-200 px-3 py-3">
                 <input
                   type="checkbox"
                   checked={allSelected}
                   onChange={onToggleAllRows}
                   aria-label="Chọn tất cả giao dịch gần đây"
                 />
-              </th>
+              </th> */}
               <th className="border-b border-slate-200 px-3 py-3">
                 <div className="inline-flex items-center gap-1 font-semibold text-slate-700">
                   Tên giao dịch

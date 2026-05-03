@@ -286,9 +286,6 @@ function DashboardPage() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Tổng quan</h2>
-          <button type="button" className="text-sm font-semibold text-blue-600 hover:text-blue-700">
-            Xem chi tiết
-          </button>
         </div>
 
         <OverviewCards
@@ -306,9 +303,6 @@ function DashboardPage() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Giao dịch gần đây</h2>
-          <button type="button" className="text-sm font-semibold text-blue-600 hover:text-blue-700">
-            Xem chi tiết
-          </button>
         </div>
 
         <RecentTransactionsTable

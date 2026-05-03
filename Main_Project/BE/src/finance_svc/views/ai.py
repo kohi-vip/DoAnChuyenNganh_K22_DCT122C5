@@ -51,15 +51,6 @@ def insights(
 ):
     return ai_service.get_insights(db, current_user.id)
 
-
-@router.get("/anomalies", response_model=AnomalyResponse)
-def anomalies(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    return ai_service.detect_anomalies(db, current_user.id)
-
-
 @router.post("/chat", response_model=ChatResponse)
 def chat(
     data: ChatRequest,

@@ -319,59 +319,6 @@ Trả về JSON thuần (không markdown, không text ngoài JSON):
     except Exception:
         return InsightResponse(analysis=raw, suggestions=[], period=period)
 
-
-def detect_anomalies(db: Session, user_id: str) -> AnomalyResponse:
-    wallet_ids = [w.id for w in db.query(Wallet).filter(Wallet.user_id == user_id).all()]
-    rows = (
-        db.query(Category.name, Transaction.amount)
-        .join(Transaction, Transaction.category_id == Category.id)
-        .filter(Transaction.wallet_id.in_(wallet_ids), Transaction.is_reviewed == True, Transaction.type == "expense")
-        .all()
-    )
-
-    by_cat: dict[str, list[float]] = {}
-    for r in rows:
-        by_cat.setdefault(r.name, []).append(float(r.amount))
-
-    raw_anomalies = []
-    for category, amounts in by_cat.items():
-        if len(amounts) < 3:
-            continue
-        mean = statistics.mean(amounts)
-        stdev = statistics.stdev(amounts)
-        if stdev == 0:
-            continue
-        for amount in amounts:
-            z = (amount - mean) / stdev
-            if z > 2.0:
-                raw_anomalies.append({"category": category, "amount": amount, "mean": round(mean), "z_score": round(z, 2)})
-
-    if not raw_anomalies:
-        return AnomalyResponse(anomalies=[], total_found=0)
-
-    client = _get_groq_client()
-    anomaly_items = []
-    for a in raw_anomalies:
-        prompt = f"""Chi tiêu bất thường: danh mục "{a['category']}", số tiền {a['amount']:,.0f} VND (trung bình {a['mean']:,.0f} VND, z-score {a['z_score']}).
-Viết 1 câu thông báo ngắn gọn bằng tiếng Việt."""
-        r = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=80,
-        )
-        desc = r.choices[0].message.content.strip()
-        anomaly_items.append(AnomalyItem(
-            category=a["category"],
-            amount=Decimal(str(a["amount"])),
-            mean=Decimal(str(a["mean"])),
-            z_score=a["z_score"],
-            description=desc,
-        ))
-
-    return AnomalyResponse(anomalies=anomaly_items, total_found=len(anomaly_items))
-
-
 def _build_user_financial_context(db: Session, user_id: str) -> dict:
     # Lấy toàn bộ context tài chính của user (tháng này + tháng trước) để inject vào system prompt cho AI trả lời chi tiết theo từng danh mục.#
     wallet_ids = [w.id for w in db.query(Wallet).filter(Wallet.user_id == user_id).all()]
