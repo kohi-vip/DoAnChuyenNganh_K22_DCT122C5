@@ -1,0 +1,11 @@
+Sprint log 4_5_2026
+Hoàn thành bảng phân công --> Nộp bảng phân công sau cùng và họp 1 ngày để rehersal
+Các công việc cần phân công còn lại:
+Làm slides: Nghĩa, Thạch
+Viết chương 4 test cases: Tuấn
+Hoàn thành phần chụp giao diện vào báo cáo: Khôi
+Viết chương 3 phần 3.1 và 3.2: Thạch
+Viết chương 3 phần 3.3 và 3.4: Khôi
+Sửa lỗi vặt đã có chỉ ra trong buổi họp: Tuấn
+
+Dự kiến tái kiểm tra đồ án và rehersal: Tối thứ 3 5_5_2026
