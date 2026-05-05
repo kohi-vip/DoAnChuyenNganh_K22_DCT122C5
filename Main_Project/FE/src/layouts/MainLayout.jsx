@@ -2,20 +2,37 @@ import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import ManagementSidebar from "../components/management/ManagementSidebar";
 import CreateTransactionDrawer from "../components/transactions/CreateTransactionDrawer";
+import QuickPayDrawer from "../components/transactions/QuickPayDrawer";
 
 function MainLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerPrefill, setDrawerPrefill] = useState(null);
+  const [quickPayOpen, setQuickPayOpen] = useState(false);
+  const [quickPayPrefill, setQuickPayPrefill] = useState(null);
   const [feedback, setFeedback] = useState(null);
 
   const openCreateTransaction = (prefill = null) => {
     setDrawerPrefill(prefill);
-    setDrawerOpen(true);
+    window.requestAnimationFrame(() => {
+      setDrawerOpen(true);
+    });
+  };
+
+  const openQuickPay = (prefill) => {
+    setQuickPayPrefill(prefill);
+    window.requestAnimationFrame(() => {
+      setQuickPayOpen(true);
+    });
   };
 
   const closeCreateTransaction = () => {
     setDrawerOpen(false);
     setDrawerPrefill(null);
+  };
+
+  const closeQuickPay = () => {
+    setQuickPayOpen(false);
+    setQuickPayPrefill(null);
   };
 
   useEffect(() => {
@@ -48,14 +65,20 @@ function MainLayout() {
       <ManagementSidebar onOpenCreateTransaction={() => openCreateTransaction()} />
       <main className="h-screen w-3/4 overflow-y-auto bg-slate-50 p-4 md:p-6">
         <div className="mx-auto max-w-[1200px]">
-          <Outlet context={{ openCreateTransaction }} />
+          <Outlet context={{ openCreateTransaction, openQuickPay }} />
         </div>
       </main>
       <CreateTransactionDrawer
+        key={drawerPrefill ? JSON.stringify(drawerPrefill) : "empty"}
         open={drawerOpen}
         onClose={closeCreateTransaction}
         initialPrefill={drawerPrefill}
         onSuccessToast={showFeedback}
+      />
+      <QuickPayDrawer
+        open={quickPayOpen}
+        onClose={closeQuickPay}
+        initialPrefill={quickPayPrefill}
       />
 
       {feedback?.message ? (

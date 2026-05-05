@@ -23,47 +23,58 @@ const toDateValue = (date = new Date()) => {
 
 const emptyToast = { type: "", message: "" };
 
-/** Các nội dung giao dịch mặc định */
-const TRANSACTION_CONTENT_PRESETS = [
-  { label: "-- Chọn nội dung --", value: "" },
-  { label: "Ăn uống", value: "Ăn uống" },
-  { label: "Di chuyển", value: "Di chuyển" },
-  { label: "Mua sắm", value: "Mua sắm" },
-  { label: "Giải trí", value: "Giải trí" },
-  { label: "Y tế", value: "Y tế" },
-  { label: "Hóa đơn", value: "Hóa đơn" },
-  { label: "Nạp tiền", value: "Nạp tiền" },
-  { label: "Lương", value: "Lương" },
-  { label: "Chuyển khoản", value: "Chuyển khoản" },
-  { label: "Khác (nhập tùy ý)", value: "__custom__" },
-];
-
 const buildDefaultEntryName = ({ entryMode, transactionType, transactionCount, recurringCount }) => {
   const sourceCount = entryMode === "recurring" ? recurringCount : transactionCount;
   const safeCount = Number.isFinite(sourceCount) ? sourceCount : 0;
   const nextNumber = Math.max(1, safeCount + 1);
   const label = transactionType === "income" ? "thu nhập" : "chi tiêu";
-  const prefix = entryMode === "recurring" ? "Tên lịch giao dịch" : "Mô tả giao dịch";
+  const prefix = entryMode === "recurring" ? "Mô tả giao dịch định kỳ" : "Mô tả giao dịch";
   return `${prefix} ${label} số ${nextNumber}`;
 };
 
 function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSuccessToast = null }) {
+  if (!open) return null;
+
   const { wallets, setWallets, categories, transactions, setTransactions, refreshAll } = useAppData();
   const modalRef = useRef(null);
   const amountInputRef = useRef(null);
 
-  // ── Entry mode: "transaction" | "recurring" | "transfer" ──────────────────
   const [entryMode, setEntryMode] = useState("transaction");
 
   // ── Shared state ──────────────────────────────────────────────────────────
-  const [type, setType] = useState("expense");
-  const [amount, setAmount] = useState("");
-  const [name, setName] = useState("");
-  const [nameTouched, setNameTouched] = useState(false);
-  const [walletId, setWalletId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [recurringId, setRecurringId] = useState("");
-  const [dateTime, setDateTime] = useState(toDateTimeLocalValue());
+  const initialType = initialPrefill
+    ? (initialPrefill.type === "income" || initialPrefill.type === "expense" ? initialPrefill.type : "expense")
+    : "expense";
+  const initialAmount = initialPrefill ? String(initialPrefill.amount || "") : "";
+  const initialNameTouched = Boolean(initialPrefill?.note || initialPrefill?.vendor);
+  const initialWalletId = initialPrefill?.wallet_id ?? "";
+  const initialCategoryId = initialPrefill?.category_id ?? initialPrefill?.categoryId ?? "";
+  const initialRecurringId = initialPrefill?.recurring_id ?? "";
+  const initialDateTime = initialPrefill ? (() => {
+    const prefillDate = initialPrefill.transacted_at || initialPrefill.date;
+    return prefillDate ? toDateTimeLocalValue(new Date(prefillDate)) : toDateTimeLocalValue();
+  })() : toDateTimeLocalValue();
+
+  const [type, setType] = useState(initialType);
+  const [amount, setAmount] = useState(initialAmount);
+
+  // Lazy init: đọc transactionCountForType sau khi type state đã resolve
+  const getInitialTransactionName = () => {
+    if (initialPrefill) {
+      return initialPrefill.note || (initialPrefill.vendor ? `Hóa đơn ${initialPrefill.vendor}` : "");
+    }
+    const count = (transactions || []).filter((t) => t.type === initialType).length;
+    return buildDefaultEntryName({ entryMode: "transaction", transactionType: initialType, transactionCount: count, recurringCount: 0 });
+  };
+  const [transactionName, setTransactionName] = useState(getInitialTransactionName);
+  const [transactionNameTouched, setTransactionNameTouched] = useState(initialNameTouched);
+  const [recurringName, setRecurringName] = useState(
+    initialPrefill ? initialPrefill.note || "" : ""
+  );
+  const [walletId, setWalletId] = useState(initialWalletId);
+  const [categoryId, setCategoryId] = useState(initialCategoryId);
+  const [recurringId, setRecurringId] = useState(initialRecurringId);
+  const [dateTime, setDateTime] = useState(initialDateTime);
   const [frequency, setFrequency] = useState("monthly");
   const [startDate, setStartDate] = useState(toDateValue());
   const [executionTime, setExecutionTime] = useState("08:00");
@@ -83,6 +94,18 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
   const [toast, setToast] = useState(emptyToast);
   const [submitting, setSubmitting] = useState(false);
   const [recurringTemplatesCount, setRecurringTemplatesCount] = useState(0);
+
+  // Force re-render input name khi entryMode hoặc type thay đổi
+  const [nameKey, setNameKey] = useState(0);
+  useEffect(() => {
+    setNameKey((k) => k + 1);
+    if (!initialPrefill && entryMode === "transaction") {
+      setTransactionNameTouched(false);
+    }
+    if (!initialPrefill && entryMode === "recurring") {
+      setRecurringName("");
+    }
+  }, [entryMode, type]);
 
   const transactionCountForType = useMemo(
     () => (transactions || []).filter((transaction) => transaction.type === type).length,
@@ -115,44 +138,10 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     }
   }, [open, wallets]);
 
+  // ── Load recurring templates count on drawer open ──────────────────────────
+  // Must be independent of entryMode so it doesn't get cancelled on tab switch
   useEffect(() => {
-    if (!open || entryMode !== "transfer" || transferNoteTouched) {
-      return;
-    }
-
-    const fromName = walletNameById.get(fromWalletId) || "ví nguồn";
-    const toName = walletNameById.get(toWalletId) || "ví đích";
-    setTransferNote(`Chuyển tiền từ ${fromName} đến ${toName}`);
-  }, [open, entryMode, fromWalletId, toWalletId, walletNameById, transferNoteTouched]);
-
-  // ── Default transaction name khi chưa user chưa sửa ─────────────────────
-  useEffect(() => {
-    if (!open || initialPrefill) return;
-    if (entryMode !== "transaction") return;
-
-    setNameTouched(false);
-  }, [open, initialPrefill, entryMode]);
-
-  useEffect(() => {
-    if (!open || initialPrefill || nameTouched) {
-      return;
-    }
-
-    setName(
-      buildDefaultEntryName({
-        entryMode,
-        transactionType: type,
-        transactionCount: transactionCountForType,
-        recurringCount: recurringTemplatesCount,
-      })
-    );
-  }, [open, initialPrefill, entryMode, type, transactionCountForType, recurringTemplatesCount, nameTouched]);
-
-  // ── Keyboard trap ────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!open || entryMode !== "recurring") {
-      return undefined;
-    }
+    if (!open) return;
 
     let cancelled = false;
 
@@ -174,7 +163,47 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     return () => {
       cancelled = true;
     };
-  }, [open, entryMode, type]);
+  }, [open, type]);
+
+  // ── Auto-fill transfer note ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!open || entryMode !== "transfer" || transferNoteTouched) {
+      return;
+    }
+
+    const fromName = walletNameById.get(fromWalletId) || "ví nguồn";
+    const toName = walletNameById.get(toWalletId) || "ví đích";
+    setTransferNote(`Chuyển tiền từ ${fromName} đến ${toName}`);
+  }, [open, entryMode, fromWalletId, toWalletId, walletNameById, transferNoteTouched]);
+
+  // ── Default transaction name: fire when transactions load/changed ─────────────
+  useEffect(() => {
+    if (!open) return;
+    if (initialPrefill) return;
+    if (entryMode !== "transaction") return;
+    if (transactionNameTouched || transactionName) return;
+
+    setTransactionName(
+      buildDefaultEntryName({
+        entryMode: "transaction",
+        transactionType: type,
+        transactionCount: transactionCountForType,
+        recurringCount: recurringTemplatesCount,
+      })
+    );
+  }, [open, entryMode, type, transactionCountForType, recurringTemplatesCount, transactionNameTouched, transactionName, initialPrefill, transactions]);
+
+  // ── Default recurring name: fire when recurringTemplates load/changed ───────
+  useEffect(() => {
+    if (!open) return;
+    if (initialPrefill) return;
+    if (entryMode !== "recurring") return;
+    if (recurringName) return;
+
+    const count = recurringTemplatesCount;
+    const nextNumber = Math.max(1, count + 1);
+    setRecurringName(`Mô tả giao dịch chi tiêu định kỳ số ${nextNumber}`);
+  }, [open, entryMode, recurringTemplatesCount, recurringName, initialPrefill]);
 
   // ── Keyboard trap ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -224,47 +253,46 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     return "";
   }, [categories]);
 
-  // ── Prefill từ AI shortcut ───────────────────────────────────────────────
-  useEffect(() => {
-    if (!open || !initialPrefill) return;
-
-    setEntryMode("transaction");
-    setAmount(String(initialPrefill.amount || ""));
-    setType(initialPrefill.type === "income" || initialPrefill.type === "expense" ? initialPrefill.type : "expense");
-
-    if (initialPrefill.wallet_id) setWalletId(initialPrefill.wallet_id);
-    if (initialPrefill.recurring_id) setRecurringId(initialPrefill.recurring_id);
-
-    const prefillDate = initialPrefill.transacted_at || initialPrefill.date;
-    if (prefillDate) setDateTime(toDateTimeLocalValue(new Date(prefillDate)));
-
-    const prefillNote = initialPrefill.note || (initialPrefill.vendor ? `Hóa đơn ${initialPrefill.vendor}` : "");
-    if (prefillNote) {
-      setName(prefillNote);
-      setNameTouched(true);
-    }
-
-    if (initialPrefill.category_id) {
-      setCategoryId(initialPrefill.category_id);
-    } else {
-      const matchedId = findCategoryIdByName(initialPrefill.suggested_category || initialPrefill.category);
-      if (matchedId) setCategoryId(matchedId);
-    }
-  }, [open, initialPrefill, findCategoryIdByName]);
-
   // ── Reset recurring khi chuyển mode ───────────────────────────────────────
   useEffect(() => {
     if (!open || initialPrefill) return;
     setRecurringId("");
   }, [open, initialPrefill]);
 
+  // ── Sync form state khi initialPrefill prop thay đổi ───────────────────
+  useEffect(() => {
+    if (!initialPrefill) return;
+
+    setEntryMode("transaction");
+    setAmount(String(initialPrefill.amount || ""));
+    setType(initialPrefill.type === "income" || initialPrefill.type === "expense" ? initialPrefill.type : "expense");
+    if (initialPrefill.wallet_id) setWalletId(initialPrefill.wallet_id);
+    if (initialPrefill.recurring_id) setRecurringId(initialPrefill.recurring_id);
+    const prefillDate = initialPrefill.transacted_at || initialPrefill.date;
+    if (prefillDate) setDateTime(toDateTimeLocalValue(new Date(prefillDate)));
+    const prefillNote = initialPrefill.note || (initialPrefill.vendor ? `Hóa đơn ${initialPrefill.vendor}` : "");
+    if (prefillNote) {
+      setTransactionName(prefillNote);
+      setTransactionNameTouched(true);
+    }
+    const prefillCat = initialPrefill.category_id ?? initialPrefill.categoryId;
+    if (prefillCat) {
+      setCategoryId(prefillCat);
+    } else {
+      const matchedId = findCategoryIdByName(initialPrefill.suggested_category || initialPrefill.category);
+      if (matchedId) setCategoryId(matchedId);
+    }
+  }, [initialPrefill, findCategoryIdByName]);
+
   // ── Reset form khi đóng ──────────────────────────────────────────────────
   useEffect(() => {
     if (!open) {
       setAmount("");
-      setName("");
-      setNameTouched(false);
+      setTransactionName("");
+      setTransactionNameTouched(false);
+      setRecurringName("");
       setRecurringId("");
+      setCategoryId("");
       setCategorySearch("");
       setDateTime(toDateTimeLocalValue());
       setNextDueDate(toDateValue());
@@ -274,9 +302,11 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
       setTransferNoteTouched(false);
     }
     setAmount("");
-    setName("");
-    setNameTouched(false);
+    setTransactionName("");
+    setTransactionNameTouched(false);
+    setRecurringName("");
     setRecurringId("");
+    setCategoryId("");
     setCategorySearch("");
     setDateTime(toDateTimeLocalValue());
     setNextDueDate(toDateValue());
@@ -327,16 +357,22 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
         : transactionCountForType + additionalTransactionCount;
 
     setAmount("");
-    setName(
-      buildDefaultEntryName({
-        entryMode,
-        transactionType: type,
-        transactionCount: nextCount,
-        recurringCount: nextCount,
-      })
-    );
-    setNameTouched(false);
+    if (entryMode === "transaction") {
+      setTransactionName(
+        buildDefaultEntryName({
+          entryMode: "transaction",
+          transactionType: type,
+          transactionCount: nextCount,
+          recurringCount: 0,
+        })
+      );
+      setTransactionNameTouched(false);
+    }
+    if (entryMode === "recurring") {
+      setRecurringName(`Mô tả giao dịch chi tiêu định kỳ số ${Math.max(1, nextCount)}`);
+    }
     setRecurringId("");
+    setCategoryId("");
     setCategorySearch("");
     setDateTime(toDateTimeLocalValue());
     setNextDueDate(toDateValue());
@@ -367,7 +403,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
 
   // ── Payload builders ──────────────────────────────────────────────────────
   const buildTransactionPayload = () => ({
-    note: name.trim() || null,
+    note: transactionName.trim() || null,
     amount: Number(amount),
     type,
     wallet_id: walletId,
@@ -381,7 +417,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     category_id: categoryId || null,
     type,
     amount: Number(amount),
-    note: name.trim() || null,
+    note: recurringName.trim() || null,
     frequency,
     start_date: startDate,
     execution_time: executionTime,
@@ -423,7 +459,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
         setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
         return;
       }
-      if (!nameTouched || !name.trim()) {
+      if (!transactionNameTouched || !transactionName.trim()) {
         setToast({ type: "error", message: "Vui lòng chọn hoặc nhập nội dung giao dịch." });
         return;
       }
@@ -515,49 +551,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     if (isTransaction) {
       window.location.reload();
     }
-  };
-
-  if (!open) return null;
-
-  // ── Render helpers ─────────────────────────────────────────────────────────
-  const renderPresetSelect = () => {
-    const isCustom = !TRANSACTION_CONTENT_PRESETS.some((p) => p.value === name && p.value !== "__custom__");
-    const showCustomInput = name === "__custom__" || (isCustom && name && name !== "" && !TRANSACTION_CONTENT_PRESETS.slice(1, -1).some((p) => p.value === name));
-
-    return (
-      <>
-        <select
-          value={TRANSACTION_CONTENT_PRESETS.some((p) => p.value === name) ? name : "__custom__"}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === "__custom__") {
-              setName("");
-              setNameTouched(true);
-            } else {
-              setName(val);
-              setNameTouched(true);
-            }
-          }}
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-        >
-          {TRANSACTION_CONTENT_PRESETS.map((p) => (
-            <option key={p.value} value={p.value}>{p.label}</option>
-          ))}
-        </select>
-        {showCustomInput && (
-          <input
-            type="text"
-            value={name === "__custom__" ? "" : name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setNameTouched(true);
-            }}
-            placeholder="Nhập nội dung tùy ý..."
-            className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
-          />
-        )}
-      </>
-    );
   };
 
   return (
@@ -740,26 +733,35 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
                     </div>
                   )}
 
-                  {/* Nội dung giao dịch — preset dropdown */}
+                  {/* Nội dung giao dịch */}
                   {entryMode === "transaction" && (
                     <label className="block">
                       <span className="mb-1 block text-sm font-medium text-slate-700">Nội dung giao dịch</span>
-                      {renderPresetSelect()}
+                      <input
+                        type="text"
+                        key={nameKey}
+                        value={transactionName}
+                        onChange={(e) => {
+                          setTransactionName(e.target.value);
+                          setTransactionNameTouched(true);
+                        }}
+                        placeholder="Ví dụ: Tiền nhà, Ăn uống, Thu nhập lương..."
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                      />
                     </label>
                   )}
 
-                  {/* Tên lịch giao dịch định kỳ */}
+                  {/* Nội dung giao dịch định kỳ */}
                   {entryMode === "recurring" && (
                     <label className="block">
                       <span className="mb-1 block text-sm font-medium text-slate-700">
-                        Tên lịch giao dịch (Optional)
+                        Nội dung giao dịch định kỳ
                       </span>
                       <input
                         type="text"
-                        value={name}
+                        value={recurringName}
                         onChange={(e) => {
-                          setName(e.target.value);
-                          setNameTouched(true);
+                          setRecurringName(e.target.value);
                         }}
                         placeholder="Ví dụ: Tiền nhà, Thu nhập lương..."
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
@@ -914,6 +916,44 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
 
                     {entryMode === "recurring" && (
                       <>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-slate-700">Danh mục</label>
+                          <input
+                            value={categorySearch}
+                            onChange={(e) => setCategorySearch(e.target.value)}
+                            placeholder="Tìm danh mục..."
+                            className="mb-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500"
+                          />
+                          <div className="max-h-32 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
+                            {categoryTree.map((parent) => (
+                              <div key={parent.id} className="mb-1 last:mb-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setCategoryId(categoryId === parent.id ? "" : parent.id)}
+                                  className={`w-full rounded-lg px-2 py-1.5 text-left text-sm ${
+                                    categoryId === parent.id ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  {parent.name}
+                                </button>
+                                {(parent.children || []).map((child) => (
+                                  <button
+                                    key={child.id}
+                                    type="button"
+                                    onClick={() => setCategoryId(child.id)}
+                                    className={`mt-1 w-full rounded-lg px-2 py-1.5 pl-6 text-left text-sm ${
+                                      categoryId === child.id ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    {child.name}
+                                  </button>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="mt-1 text-xs text-slate-500">Đã chọn: {selectedCategoryLabel}</p>
+                        </div>
+
                         <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
                           <input
                             type="checkbox"

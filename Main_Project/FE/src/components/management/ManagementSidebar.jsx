@@ -1,50 +1,13 @@
-import {
-	Bell,
-	Bot,
-	ChartColumnBig,
-	CreditCard,
-	History,
-	Home,
-	LogOut,
-	Plus,
-	Search,
-	Settings,
-	// User,  // tạm ẩn - chưa dùng
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Bell, Bot, ChartColumnBig, CreditCard, History, Home, LogOut, Plus, Search, Settings } from "lucide-react";
+import { useMemo } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { fetchUnreadNotificationCount } from "../../api/financeApi";
+import { useNotificationContext } from "../../stores/NotificationContext";
 import { useAuth } from "../../stores/useAuth";
 
 function ManagementSidebar({ onOpenCreateTransaction }) {
 	const navigate = useNavigate();
 	const { logout } = useAuth();
-	const [unreadCount, setUnreadCount] = useState(0);
-
-	useEffect(() => {
-		let mounted = true;
-
-		const loadUnreadCount = async () => {
-			try {
-				const count = await fetchUnreadNotificationCount();
-				if (mounted) {
-					setUnreadCount(count);
-				}
-			} catch {
-				if (mounted) {
-					setUnreadCount(0);
-				}
-			}
-		};
-
-		loadUnreadCount();
-		const timer = window.setInterval(loadUnreadCount, 60000);
-
-		return () => {
-			mounted = false;
-			window.clearInterval(timer);
-		};
-	}, []);
+	const { unreadCount } = useNotificationContext();
 
 	const navItems = useMemo(
 		() => [

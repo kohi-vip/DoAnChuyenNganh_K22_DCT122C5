@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
   fetchRecurringTemplates,
@@ -9,6 +9,7 @@ import {
   runNotificationAction,
 } from "../api/financeApi";
 import NotificationDialog from "../components/common/NotificationDialog";
+import { useNotificationContext } from "../stores/NotificationContext";
 
 const PAGE_SIZE = 10;
 
@@ -25,7 +26,12 @@ const formatDateTime = (value) => {
 };
 
 function NotificationsPage() {
-  const { openCreateTransaction } = useOutletContext();
+  const { openQuickPay } = useOutletContext();
+  const {
+    refreshUnreadCount,
+    registerRefreshNotifications,
+    unregisterRefreshNotifications,
+  } = useNotificationContext();
   const [items, setItems] = useState([]);
   const [recurringMap, setRecurringMap] = useState({});
   const [loading, setLoading] = useState(false);
@@ -37,54 +43,93 @@ function NotificationsPage() {
   const [pendingActionKey, setPendingActionKey] = useState("");
   const [feedback, setFeedback] = useState(null);
 
-  const loadNotifications = useCallback(async () => {
-    try {
-      setLoading(true);
-      const isRead =
-        readFilter === "all" ? undefined : readFilter === "read";
-      const res = await fetchNotifications({
-        page,
-        page_size: PAGE_SIZE,
-        is_read: isRead,
-      });
-      setItems(res.items);
-      setTotalPages(res.totalPages || 1);
-    } catch (error) {
-      setFeedback({
-        type: "error",
-        message: error?.response?.data?.detail || "Không thể tải danh sách thông báo.",
-      });
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    const params = { page, page_size: PAGE_SIZE };
+    if (readFilter === "read") {
+      params.is_read = true;
+    } else if (readFilter === "unread") {
+      params.is_read = false;
     }
+
+    fetchNotifications(params)
+      .then((res) => {
+        if (!cancelled) {
+          setItems(res.items);
+          setTotalPages(res.totalPages || 1);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setFeedback({
+            type: "error",
+            message: error?.response?.data?.detail || "Không thể tải danh sách thông báo.",
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [page, readFilter]);
 
-  const loadRecurringTemplates = useCallback(async () => {
-    try {
-      setLoadingRecurring(true);
-      const templates = await fetchRecurringTemplates();
-      const mapped = templates.reduce((acc, template) => {
-        acc[template.id] = template;
-        return acc;
-      }, {});
-      setRecurringMap(mapped);
-    } catch (error) {
-      setFeedback({
-        type: "error",
-        message: error?.response?.data?.detail || "Không thể tải dữ liệu giao dịch định kỳ.",
+  useEffect(() => {
+    registerRefreshNotifications(() => {
+      const params = { page, page_size: PAGE_SIZE };
+      if (readFilter === "read") {
+        params.is_read = true;
+      } else if (readFilter === "unread") {
+        params.is_read = false;
+      }
+      fetchNotifications(params)
+        .then((res) => {
+          setItems(res.items);
+          setTotalPages(res.totalPages || 1);
+        })
+        .catch(() => {});
+    });
+    return () => unregisterRefreshNotifications();
+  }, [registerRefreshNotifications, unregisterRefreshNotifications, page, readFilter]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingRecurring(true);
+
+    fetchRecurringTemplates()
+      .then((templates) => {
+        if (!cancelled) {
+          const mapped = templates.reduce((acc, template) => {
+            acc[template.id] = template;
+            return acc;
+          }, {});
+          setRecurringMap(mapped);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setFeedback({
+            type: "error",
+            message: error?.response?.data?.detail || "Không thể tải dữ liệu giao dịch định kỳ.",
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingRecurring(false);
+        }
       });
-    } finally {
-      setLoadingRecurring(false);
-    }
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  useEffect(() => {
-    loadNotifications();
-  }, [loadNotifications]);
-
-  useEffect(() => {
-    loadRecurringTemplates();
-  }, [loadRecurringTemplates]);
 
   const unreadCountOnPage = useMemo(
     () => items.filter((item) => !item.isRead).length,
@@ -111,6 +156,7 @@ function NotificationsPage() {
             : currentItem
         )
       );
+      refreshUnreadCount();
     } catch (error) {
       setFeedback({
         type: "error",
@@ -131,6 +177,7 @@ function NotificationsPage() {
           readAt: item.readAt || new Date().toISOString(),
         }))
       );
+      refreshUnreadCount();
       setFeedback({ type: "success", message: "Đã đánh dấu tất cả thông báo là đã đọc." });
     } catch (error) {
       setFeedback({
@@ -171,7 +218,7 @@ function NotificationsPage() {
     }
 
     if (action === "pay") {
-      if (!openCreateTransaction) {
+      if (!openQuickPay) {
         setFeedback({
           type: "error",
           message: "Không thể mở form thanh toán lúc này.",
@@ -179,7 +226,7 @@ function NotificationsPage() {
         return;
       }
 
-      openCreateTransaction({
+      const payPrefill = {
         recurring_id: recurring.id,
         wallet_id: recurring.walletId,
         category_id: recurring.categoryId,
@@ -192,7 +239,8 @@ function NotificationsPage() {
             setPendingActionKey(actionKey);
             await runNotificationAction(item.id, "pay");
             setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
-            await Promise.all([loadNotifications(), loadRecurringTemplates()]);
+            await Promise.all([fetchNotifications({ page, page_size: PAGE_SIZE }), fetchRecurringTemplates()]);
+            refreshUnreadCount();
             setFeedback({ type: "success", message: "Đã thanh toán thành công." });
           } catch (error) {
             setFeedback({
@@ -203,7 +251,8 @@ function NotificationsPage() {
             setPendingActionKey("");
           }
         },
-      });
+      };
+      openQuickPay(payPrefill);
       return;
     }
 
@@ -211,7 +260,8 @@ function NotificationsPage() {
       setPendingActionKey(actionKey);
       await runNotificationAction(item.id, action);
       setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
-      await Promise.all([loadNotifications(), loadRecurringTemplates()]);
+      await Promise.all([fetchNotifications({ page, page_size: PAGE_SIZE }), fetchRecurringTemplates()]);
+      refreshUnreadCount();
 
       const actionLabel = action === "pay" ? "thanh toán" : "hủy kỳ này";
       setFeedback({ type: "success", message: `Đã ${actionLabel} thành công.` });

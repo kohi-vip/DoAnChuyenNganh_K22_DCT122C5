@@ -19,15 +19,18 @@ let refreshPromise = null;
 
 const refreshAccessToken = async () => {
   if (refreshPromise) {
+    console.log("[httpClient] refreshPromise already exists, reusing");
     return refreshPromise;
   }
 
+  console.log("[httpClient] creating new refreshPromise");
   refreshPromise = (async () => {
     const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
     if (!refreshToken) {
       throw new Error("Missing refresh token");
     }
 
+    console.log("[httpClient] calling /api/auth/refresh");
     const response = await refreshClient.post("/api/auth/refresh", {
       refresh_token: refreshToken,
     });
@@ -42,6 +45,7 @@ const refreshAccessToken = async () => {
     localStorage.setItem(ACCESS_TOKEN_KEY, nextAccessToken);
     localStorage.setItem(REFRESH_TOKEN_KEY, nextRefreshToken);
 
+    console.log("[httpClient] refresh successful, new token received");
     return nextAccessToken;
   })();
 
@@ -68,6 +72,8 @@ httpClient.interceptors.response.use(
     const status = error?.response?.status;
     const requestUrl = originalRequest?.url || "";
 
+    console.log("[httpClient] response error:", status, requestUrl, "retry:", originalRequest?._retry);
+
     if (!originalRequest || status !== 401 || originalRequest._retry) {
       return Promise.reject(error);
     }
@@ -84,11 +90,15 @@ httpClient.interceptors.response.use(
     originalRequest._retry = true;
 
     try {
+      console.log("[httpClient] attempting token refresh for:", requestUrl);
       const newAccessToken = await refreshAccessToken();
+      console.log("[httpClient] refresh success, retrying:", requestUrl);
       originalRequest.headers = originalRequest.headers || {};
       originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
       return httpClient(originalRequest);
     } catch (refreshError) {
+      console.log("[httpClient] refresh failed:", refreshError?.message);
+      originalRequest._retry = false;
       clearAuthSession();
       return Promise.reject(refreshError);
     }
