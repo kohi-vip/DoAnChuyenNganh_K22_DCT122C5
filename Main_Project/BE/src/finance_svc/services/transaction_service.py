@@ -213,31 +213,31 @@ def delete_transaction(db: Session, user_id: str, transaction_id: str):
     db.commit()
 
 
-def export_transactions_csv(
-    db: Session,
-    user_id: str,
-    date_from: datetime | None,
-    date_to: datetime | None,
-) -> str:
-    if date_from:
-        date_from = _to_vn_naive(date_from)
-    if date_to:
-        date_to = _to_vn_naive(date_to)
+# def export_transactions_csv(
+#     db: Session,
+#     user_id: str,
+#     date_from: datetime | None,
+#     date_to: datetime | None,
+# ) -> str:
+#     if date_from:
+#         date_from = _to_vn_naive(date_from)
+#     if date_to:
+#         date_to = _to_vn_naive(date_to)
 
-    user_wallet_ids = [w.id for w in db.query(Wallet).filter(Wallet.user_id == user_id).all()]
-    q = db.query(Transaction).filter(Transaction.wallet_id.in_(user_wallet_ids), Transaction.is_reviewed == True)
-    if date_from:
-        q = q.filter(Transaction.transacted_at >= date_from)
-    if date_to:
-        q = q.filter(Transaction.transacted_at <= date_to)
-    txns = q.order_by(Transaction.transacted_at.desc()).all()
+#     user_wallet_ids = [w.id for w in db.query(Wallet).filter(Wallet.user_id == user_id).all()]
+#     q = db.query(Transaction).filter(Transaction.wallet_id.in_(user_wallet_ids), Transaction.is_reviewed == True)
+#     if date_from:
+#         q = q.filter(Transaction.transacted_at >= date_from)
+#     if date_to:
+#         q = q.filter(Transaction.transacted_at <= date_to)
+#     txns = q.order_by(Transaction.transacted_at.desc()).all()
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["ID", "Type", "Amount", "Currency", "Category", "Note", "Date", "Source"])
-    for t in txns:
-        writer.writerow([t.id, t.type, t.amount, t.currency, t.category_id or "", t.note or "", t.transacted_at.isoformat(), t.source])
-    return output.getvalue()
+#     output = io.StringIO()
+#     writer = csv.writer(output)
+#     writer.writerow(["ID", "Type", "Amount", "Currency", "Category", "Note", "Date", "Source"])
+#     for t in txns:
+#         writer.writerow([t.id, t.type, t.amount, t.currency, t.category_id or "", t.note or "", t.transacted_at.isoformat(), t.source])
+#     return output.getvalue()
 
 
 def _get_or_404(db: Session, user_id: str, transaction_id: str) -> Transaction:

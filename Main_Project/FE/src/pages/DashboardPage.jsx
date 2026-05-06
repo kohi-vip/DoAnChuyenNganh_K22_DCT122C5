@@ -16,7 +16,6 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function DashboardPage() {
   const { wallets, setWallets, categories, transactions, setTransactions } = useAppData();
-  const [selectedIds, setSelectedIds] = useState([]);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [deletingTransaction, setDeletingTransaction] = useState(null);
   const [feedback, setFeedback] = useState(null);
@@ -209,24 +208,6 @@ function DashboardPage() {
       });
   }, [transactions, categoryMetaById, walletNameById]);
 
-  const handleToggleRow = (id) => {
-    setSelectedIds((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
-    );
-  };
-
-  const handleToggleAllRows = () => {
-    const rowIds = recentRows.map((row) => row.id);
-    const allChecked = rowIds.every((id) => selectedIds.includes(id));
-
-    if (allChecked) {
-      setSelectedIds((current) => current.filter((id) => !rowIds.includes(id)));
-      return;
-    }
-
-    setSelectedIds((current) => [...new Set([...current, ...rowIds])]);
-  };
-
   const handleSaveEdit = async (updatedTransaction) => {
     const oldTransaction = transactions.find((item) => item.id === updatedTransaction.id);
     if (!oldTransaction) {
@@ -272,7 +253,6 @@ function DashboardPage() {
       }
     });
 
-    setSelectedIds((current) => current.filter((id) => id !== deletingTransaction.id));
     setDeletingTransaction(null);
     setFeedback({ type: "success", message: "Đã xóa giao dịch và hoàn tác số dư ví." });
   };
@@ -307,9 +287,6 @@ function DashboardPage() {
 
         <RecentTransactionsTable
           rows={recentRows}
-          selectedIds={selectedIds}
-          onToggleAllRows={handleToggleAllRows}
-          onToggleRow={handleToggleRow}
           onEdit={setEditingTransaction}
           onDelete={setDeletingTransaction}
         />

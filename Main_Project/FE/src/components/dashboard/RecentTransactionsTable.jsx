@@ -46,13 +46,10 @@ const formatAmount = (amount, type, transferDirection) => {
 
 function RecentTransactionsTable({
   rows,
-  selectedIds,
-  onToggleAllRows,
-  onToggleRow,
   onEdit,
   onDelete,
 }) {
-  const allSelected = rows.length > 0 && rows.every((row) => selectedIds.includes(row.id));
+  const allSelected = rows.length > 0;
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -60,20 +57,6 @@ function RecentTransactionsTable({
         <table className="min-w-[1200px] w-full border-collapse text-sm">
           <thead className="bg-slate-50 text-left text-slate-600">
             <tr>
-              {/* <th className="border-b border-slate-200 px-3 py-3">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={onToggleAllRows}
-                  aria-label="Chọn tất cả giao dịch gần đây"
-                />
-              </th> */}
-              <th className="border-b border-slate-200 px-3 py-3">
-                <div className="inline-flex items-center gap-1 font-semibold text-slate-700">
-                  Tên giao dịch
-                  <ArrowDownAZ className="h-4 w-4" />
-                </div>
-              </th>
               <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Mô tả</th>
               <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Ngày giao dịch</th>
               <th className="border-b border-slate-200 px-3 py-3 font-semibold text-slate-700">Số tiền giao dịch</th>
@@ -89,13 +72,6 @@ function RecentTransactionsTable({
               const isTransferRow = row.type === "transfer";
               return (
                 <tr key={row.id} className="border-b border-slate-100 transition hover:bg-slate-50">
-                  <td className="px-3 py-3 align-top">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(row.id)}
-                      onChange={() => onToggleRow(row.id)}
-                    />
-                  </td>
                   <td className="px-3 py-3 align-top">
                     <div className="flex items-start gap-2">
                       <span
@@ -118,8 +94,7 @@ function RecentTransactionsTable({
                       <p className="font-semibold text-slate-800">{row.name}</p>
                     </div>
                   </td>
-                  <td className="px-3 py-3 align-top text-slate-600">{row.note}</td>
-                  <td className="px-3 py-3 align-top text-slate-700">{formatDateTime(row.transacted_at)}</td>
+                  <td className="px-3 py-3 align-top text-slate-600">{formatDateTime(row.transacted_at)}</td>
                   <td
                     className={`px-3 py-3 align-top font-semibold ${
                       row.type === "expense"

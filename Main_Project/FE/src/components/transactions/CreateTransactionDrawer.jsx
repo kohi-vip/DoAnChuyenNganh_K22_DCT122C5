@@ -128,8 +128,11 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     window.setTimeout(() => amountInputRef.current?.focus(), 10);
 
     const primaryWalletId = wallets[0]?.id || "";
-    setWalletId((cur) => cur || primaryWalletId);
-    setDateTime((cur) => cur || toDateTimeLocalValue());
+    // Nếu có prefill data từ AI, đừng ghi đè - để effect sync initialPrefill xử lý
+    if (!initialPrefill) {
+      setWalletId((cur) => cur || primaryWalletId);
+      setDateTime((cur) => cur || toDateTimeLocalValue());
+    }
     setNextDueDate((cur) => cur || toDateValue());
 
     // Reset transfer wallets về ví đầu tiên khi mở
@@ -137,7 +140,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
       setFromWalletId(wallets[0].id);
       setToWalletId(wallets[1]?.id || wallets[0].id);
     }
-  }, [open, wallets]);
+  }, [open, wallets, initialPrefill]);
 
   // ── Load recurring templates count on drawer open ──────────────────────────
   // Must be independent of entryMode so it doesn't get cancelled on tab switch
@@ -244,6 +247,8 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     }
 
     const normalized = categoryName.trim().toLowerCase();
+
+    // Tìm match chính xác trước
     for (const parent of categories) {
       if ((parent.name || "").trim().toLowerCase() === normalized) return parent.id;
       const child = (parent.children || []).find(
@@ -251,6 +256,21 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
       );
       if (child) return child.id;
     }
+
+    // Nếu không tìm thấy, tìm match bằng includes (fuzzy match)
+    for (const parent of categories) {
+      const parentLower = (parent.name || "").trim().toLowerCase();
+      // Parent name contains search term hoặc search term contains parent name
+      if (parentLower.includes(normalized) || normalized.includes(parentLower)) {
+        return parent.id;
+      }
+      const child = (parent.children || []).find((item) => {
+        const childLower = (item.name || "").trim().toLowerCase();
+        return childLower.includes(normalized) || normalized.includes(childLower);
+      });
+      if (child) return child.id;
+    }
+
     return "";
   }, [categories]);
 
@@ -264,26 +284,46 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
   useEffect(() => {
     if (!initialPrefill) return;
 
+    // Điền tất cả các trường từ AI suggestion
     setEntryMode("transaction");
     setAmount(String(initialPrefill.amount || ""));
-    setType(initialPrefill.type === "income" || initialPrefill.type === "expense" ? initialPrefill.type : "expense");
-    if (initialPrefill.wallet_id) setWalletId(initialPrefill.wallet_id);
-    if (initialPrefill.recurring_id) setRecurringId(initialPrefill.recurring_id);
-    const prefillDate = initialPrefill.transacted_at || initialPrefill.date;
-    if (prefillDate) setDateTime(toDateTimeLocalValue(new Date(prefillDate)));
+    const detectedType = initialPrefill.type === "income" || initialPrefill.type === "expense" ? initialPrefill.type : "expense";
+    setType(detectedType);
+
+    // Điền tên giao dịch
     const prefillNote = initialPrefill.note || (initialPrefill.vendor ? `Hóa đơn ${initialPrefill.vendor}` : "");
     if (prefillNote) {
       setTransactionName(prefillNote);
       setTransactionNameTouched(true);
     }
+
+    // Điền ngày tháng
+    const prefillDate = initialPrefill.transacted_at || initialPrefill.date;
+    if (prefillDate) setDateTime(toDateTimeLocalValue(new Date(prefillDate)));
+
+    // Điền ví - nếu không có wallet_id trong prefill, chọn ví đầu tiên
+    if (initialPrefill.wallet_id) {
+      setWalletId(initialPrefill.wallet_id);
+    } else {
+      const primaryWalletId = wallets[0]?.id || "";
+      if (primaryWalletId) setWalletId(primaryWalletId);
+    }
+
+    // Điền danh mục - ưu tiên category_id, rồi mới tìm bằng tên
     const prefillCat = initialPrefill.category_id ?? initialPrefill.categoryId;
     if (prefillCat) {
       setCategoryId(prefillCat);
     } else {
-      const matchedId = findCategoryIdByName(initialPrefill.suggested_category || initialPrefill.category);
-      if (matchedId) setCategoryId(matchedId);
+      const suggestedCategoryName = initialPrefill.suggested_category || initialPrefill.category;
+      if (suggestedCategoryName) {
+        const matchedId = findCategoryIdByName(suggestedCategoryName);
+        if (matchedId) setCategoryId(matchedId);
+      }
     }
-  }, [initialPrefill, findCategoryIdByName]);
+
+    // Xóa các field không cần nữa
+    if (initialPrefill.recurring_id) setRecurringId(initialPrefill.recurring_id);
+  }, [initialPrefill, findCategoryIdByName, wallets]);
 
   // ── Reset form khi đóng ──────────────────────────────────────────────────
   useEffect(() => {
@@ -301,20 +341,8 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
       setNoEndDateLimit(true);
       setTransferNote("");
       setTransferNoteTouched(false);
+      setRecurringTemplatesCount(0);
     }
-    setAmount("");
-    setTransactionName("");
-    setTransactionNameTouched(false);
-    setRecurringName("");
-    setRecurringId("");
-    setCategoryId("");
-    setCategorySearch("");
-    setDateTime(toDateTimeLocalValue());
-    setNextDueDate(toDateValue());
-    setEndDate("");
-    setNoEndDateLimit(true);
-    setRecurringTemplatesCount(0);
-    setTransferNoteTouched(false);
   }, [open]);
 
   // ── Category tree (filtered) ──────────────────────────────────────────────
@@ -455,7 +483,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     }
 
     if (isRecurring) {
-      if (!amount || Number(amount) <= 0 || !walletId || !frequency || !nextDueDate) {
+      if (!amount || Number(amount) <= 0 || !walletId || !frequency || !nextDueDate || !categoryId) {
         setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
         return;
       }
@@ -496,6 +524,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
       } else if (isRecurring) {
         const payload = buildRecurringPayload();
         await httpClient.post("/api/recurring", payload);
+        window.dispatchEvent(new CustomEvent("finance:recurring-template-created"));
         setToast({ type: "success", message: "Đã tạo giao dịch định kỳ thành công." });
       } else if (isTransfer) {
         const payload = {

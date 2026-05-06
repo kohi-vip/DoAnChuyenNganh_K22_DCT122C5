@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import {
   deleteRecurringTemplate,
@@ -88,21 +88,32 @@ function TransactionsPage() {
 
   const walletLocksRef = useRef(new Set());
 
+  const loadRecurringTemplates = useCallback(async () => {
+    try {
+      setRecurringLoading(true);
+      const items = await fetchRecurringTemplates();
+      setRecurringTemplates(items);
+    } catch (err) {
+      setFeedback({ type: "error", message: err?.response?.data?.detail || "Không thể tải giao dịch định kỳ." });
+    } finally {
+      setRecurringLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const loadRecurringTemplates = async () => {
-      try {
-        setRecurringLoading(true);
-        const items = await fetchRecurringTemplates();
-        setRecurringTemplates(items);
-      } catch (err) {
-        setFeedback({ type: "error", message: err?.response?.data?.detail || "Không thể tải giao dịch định kỳ." });
-      } finally {
-        setRecurringLoading(false);
-      }
+    loadRecurringTemplates();
+  }, [loadRecurringTemplates]);
+
+  useEffect(() => {
+    const handleRecurringTemplateCreated = () => {
+      loadRecurringTemplates();
     };
 
-    loadRecurringTemplates();
-  }, []);
+    window.addEventListener("finance:recurring-template-created", handleRecurringTemplateCreated);
+    return () => {
+      window.removeEventListener("finance:recurring-template-created", handleRecurringTemplateCreated);
+    };
+  }, [loadRecurringTemplates]);
 
   const categoryOptions = useMemo(() => {
     const flattened = [];

@@ -443,13 +443,28 @@ describe('CreateTransactionDrawer', () => {
   });
 
   describe('Recurring mode', () => {
-    it('should NOT require category when switching to recurring mode', async () => {
+    it('should require category when switching to recurring mode', async () => {
+      const { user } = renderDrawer();
+      await user.click(screen.getByText('Giao dịch định kỳ'));
+      const amountInput = screen.getByRole('spinbutton');
+      await user.clear(amountInput);
+      await user.type(amountInput, '500000');
+      const saveButton = screen.getByRole('button', { name: 'Lưu' });
+      await user.click(saveButton);
+      await waitFor(() => {
+        expect(screen.getByText(/Vui lòng nhập đầy đủ thông tin bắt buộc/i)).toBeInTheDocument();
+      });
+      expect(mockPost).not.toHaveBeenCalled();
+    });
+
+    it('should allow save after category is selected in recurring mode', async () => {
       mockPost.mockResolvedValueOnce({ data: { id: 'recurring_1' } });
       const { user } = renderDrawer();
       await user.click(screen.getByText('Giao dịch định kỳ'));
       const amountInput = getAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '500000');
+      await user.click(screen.getByText('Ăn uống'));
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
       await user.click(saveButton);
       await waitFor(() => {
@@ -466,6 +481,7 @@ describe('CreateTransactionDrawer', () => {
       const amountInput = getAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '1000000');
+      await user.click(screen.getByText('Ăn uống'));
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
       await user.click(saveButton);
       await waitFor(() => {
