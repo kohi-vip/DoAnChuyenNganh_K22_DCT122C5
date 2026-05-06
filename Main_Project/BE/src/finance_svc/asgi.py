@@ -27,7 +27,14 @@ def _run_recurring_job():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
-    scheduler.add_job(_run_recurring_job, "interval", minutes=1, id="recurring_job")
+    scheduler.add_job(
+        _run_recurring_job,
+        "interval",
+        seconds=1,
+        id="recurring_job",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
     yield
     scheduler.shutdown()

@@ -29,7 +29,7 @@ export function NotificationProvider({ children }) {
     };
 
     doFetch();
-    const timer = window.setInterval(doFetch, 100);
+    const timer = window.setInterval(doFetch, 1000);
 
     return () => {
       mountedRef.current = false;

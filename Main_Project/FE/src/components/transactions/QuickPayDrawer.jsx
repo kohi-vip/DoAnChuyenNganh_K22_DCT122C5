@@ -15,7 +15,7 @@ const toDateTimeLocalValue = (date = new Date()) => {
 export default function QuickPayDrawer({ open, onClose, initialPrefill = null }) {
   if (!open) return null;
 
-  const { wallets, setWallets, categories, transactions, setTransactions, refreshAll } = useAppData();
+  const { wallets, setWallets, categories, refreshAll } = useAppData();
   const modalRef = useRef(null);
   const amountInputRef = useRef(null);
 
@@ -76,18 +76,6 @@ export default function QuickPayDrawer({ open, onClose, initialPrefill = null })
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose]);
 
-  const applyTransactionToLocalStore = (transaction) => {
-    setTransactions((current) => [transaction, ...current]);
-    const impact = transaction.type === "income" ? transaction.amount : -transaction.amount;
-    setWallets((current) =>
-      current.map((wallet) =>
-        wallet.id === transaction.walletId
-          ? { ...wallet, balance: wallet.balance + impact }
-          : wallet
-      )
-    );
-  };
-
   const normalizeTransaction = (apiData, payload) => {
     const body = apiData?.transaction || apiData || {};
     return {
@@ -133,33 +121,32 @@ export default function QuickPayDrawer({ open, onClose, initialPrefill = null })
       type: sType,
       wallet_id: effectiveWalletId,
       category_id: effectiveCategoryId || null,
+      recurring_id: initialPrefill?.recurring_id || null,
       transacted_at: effectiveDateTime.length === 16
         ? `${effectiveDateTime}:00`
         : effectiveDateTime.slice(0, 19),
     };
 
     try {
+      if (submitting) return;
       setSubmitting(true);
       const response = await httpClient.post("/api/transactions", payload);
       const transaction = normalizeTransaction(response.data, payload);
-      applyTransactionToLocalStore(transaction);
-
-      if (typeof initialPrefill?.onSuccess === "function") {
-        initialPrefill.onSuccess(transaction);
-      }
 
       setToast({ type: "success", message: "Đã thanh toán thành công." });
       await refreshAll();
+      if (typeof initialPrefill?.onSuccess === "function") {
+        initialPrefill.onSuccess(transaction);
+      }
       setTimeout(() => onClose(), 800);
     } catch (error) {
       if (error?.response?.status === 404) {
         const localTransaction = normalizeTransaction({}, payload);
-        applyTransactionToLocalStore(localTransaction);
+        setToast({ type: "success", message: "Đã thanh toán (local mode)." });
+        await refreshAll();
         if (typeof initialPrefill?.onSuccess === "function") {
           initialPrefill.onSuccess(localTransaction);
         }
-        setToast({ type: "success", message: "Đã thanh toán (local mode)." });
-        await refreshAll();
         setTimeout(() => onClose(), 800);
       } else {
         setToast({ type: "error", message: error?.response?.data?.detail || "Không thể thanh toán." });

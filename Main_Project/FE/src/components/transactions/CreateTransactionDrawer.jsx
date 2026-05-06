@@ -108,8 +108,8 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
   }, [entryMode, type]);
 
   const transactionCountForType = useMemo(
-    () => (transactions || []).filter((transaction) => transaction.type === type).length,
-    [transactions, type]
+    () => (transactions || []).length,
+    [transactions]
   );
 
   const walletNameById = useMemo(() => {
@@ -149,7 +149,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
       try {
         const templates = await fetchRecurringTemplates();
         if (!cancelled) {
-          setRecurringTemplatesCount(templates.filter((template) => template.type === type).length);
+          setRecurringTemplatesCount(templates.length);
         }
       } catch {
         if (!cancelled) {
@@ -163,7 +163,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     return () => {
       cancelled = true;
     };
-  }, [open, type]);
+  }, [open]);
 
   // ── Auto-fill transfer note ───────────────────────────────────────────────
   useEffect(() => {
@@ -181,7 +181,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     if (!open) return;
     if (initialPrefill) return;
     if (entryMode !== "transaction") return;
-    if (transactionNameTouched || transactionName) return;
+    if (transactionNameTouched) return;
 
     setTransactionName(
       buildDefaultEntryName({
@@ -198,12 +198,12 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     if (!open) return;
     if (initialPrefill) return;
     if (entryMode !== "recurring") return;
-    if (recurringName) return;
 
     const count = recurringTemplatesCount;
     const nextNumber = Math.max(1, count + 1);
-    setRecurringName(`Mô tả giao dịch chi tiêu định kỳ số ${nextNumber}`);
-  }, [open, entryMode, recurringTemplatesCount, recurringName, initialPrefill]);
+    const label = type === "income" ? "thu nhập" : "chi tiêu";
+    setRecurringName(`Mô tả giao dịch ${label} định kỳ số ${nextNumber}`);
+  }, [open, entryMode, type, recurringTemplatesCount]);
 
   // ── Keyboard trap ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -369,7 +369,8 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
       setTransactionNameTouched(false);
     }
     if (entryMode === "recurring") {
-      setRecurringName(`Mô tả giao dịch chi tiêu định kỳ số ${Math.max(1, nextCount)}`);
+      const label = type === "income" ? "thu nhập" : "chi tiêu";
+      setRecurringName(`Mô tả giao dịch ${label} định kỳ số ${Math.max(1, nextCount)}`);
     }
     setRecurringId("");
     setCategoryId("");
@@ -383,25 +384,12 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
     // Transfer wallets giữ nguyên giữa các lần tạo liên tiếp
   };
 
-  const applyTransactionToLocalStore = (transaction) => {
-    setTransactions((current) => [transaction, ...current]);
-    const impact = transaction.type === "income" ? transaction.amount : -transaction.amount;
-    setWallets((current) =>
-      current.map((wallet) =>
-        wallet.id === transaction.walletId
-          ? { ...wallet, balance: wallet.balance + impact }
-          : wallet
-      )
-    );
-  };
-
   const normalizeDateTime = (value) => {
     if (!value) return value;
     if (value.length === 16) return `${value}:00`;
     return value.slice(0, 19);
   };
 
-  // ── Payload builders ──────────────────────────────────────────────────────
   const buildTransactionPayload = () => ({
     note: transactionName.trim() || null,
     amount: Number(amount),
@@ -459,7 +447,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
         setToast({ type: "error", message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
         return;
       }
-      if (!transactionNameTouched || !transactionName.trim()) {
+      if (!transactionNameTouched && !transactionName.trim()) {
         setToast({ type: "error", message: "Vui lòng chọn hoặc nhập nội dung giao dịch." });
         return;
       }
@@ -500,7 +488,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
         const payload = buildTransactionPayload();
         const response = await httpClient.post("/api/transactions", payload);
         const transaction = normalizeTransaction(response.data, payload);
-        applyTransactionToLocalStore(transaction);
         if (typeof initialPrefill?.onSuccess === "function") {
           initialPrefill.onSuccess(transaction);
         }
@@ -523,7 +510,6 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
       if (isTransaction && error?.response?.status === 404) {
         const payload = buildTransactionPayload();
         const localTransaction = normalizeTransaction({}, payload);
-        applyTransactionToLocalStore(localTransaction);
         if (typeof initialPrefill?.onSuccess === "function") {
           initialPrefill.onSuccess(localTransaction);
         }
@@ -710,7 +696,7 @@ function CreateTransactionDrawer({ open, onClose, initialPrefill = null, onSucce
                   </label>
 
                   {/* Loại thu / chi */}
-                  {entryMode === "transaction" && (
+                  {(entryMode === "transaction" || entryMode === "recurring") && (
                     <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
                       <button
                         type="button"
