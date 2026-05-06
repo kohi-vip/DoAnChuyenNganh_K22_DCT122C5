@@ -23,12 +23,16 @@ services:
     env_file:
       - ./BE/.env
     environment:
-      DATABASE_URL: mysql+pymysql://root:password@db:3306/finance_app
+      DATABASE_URL: mysql+pymysql://xxx:xxx@db:3306/finance_app
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/<REDACTED_WEBHOOK_ID>/chat
+      N8N_OCR_WEBHOOK_URL: http://n8n:5678/webhook/xxx
     ports:
-      - "8001:8000"
+      - "8011:8000"
     depends_on:
       db:
         condition: service_healthy
+      n8n:
+        condition: service_started
     volumes:
       - ./BE/src:/app/src
 
@@ -43,5 +47,22 @@ services:
     volumes:
       - ./FE/src:/app/src
 
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.4.6
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=false
+      - N8N_HOST=localhost
+      - N8N_PROTOCOL=http
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_RUNNERS_ENABLED=true
+      - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      - n8n_data:/home/node/.n8n
+
 volumes:
   db_data:
+  n8n_data:

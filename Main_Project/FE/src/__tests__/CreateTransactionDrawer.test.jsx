@@ -1,7 +1,14 @@
+import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CreateTransactionDrawer from '../components/transactions/CreateTransactionDrawer';
+
+const { mockPost, mockCreateTransfer, mockFetchRecurringTemplates } = vi.hoisted(() => ({
+  mockPost: vi.fn(),
+  mockCreateTransfer: vi.fn(),
+  mockFetchRecurringTemplates: vi.fn().mockResolvedValue([]),
+}));
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -70,8 +77,6 @@ import { useAppData } from '../stores/AppDataContext';
 
 // ─── Mock httpClient ──────────────────────────────────────────────────────────
 
-const mockPost = vi.fn();
-
 vi.mock('../api/httpClient', () => ({
   default: {
     post: mockPost,
@@ -80,9 +85,8 @@ vi.mock('../api/httpClient', () => ({
 
 // ─── Mock createTransfer ──────────────────────────────────────────────────────
 
-const mockCreateTransfer = vi.fn();
-
 vi.mock('../api/financeApi', () => ({
+  fetchRecurringTemplates: mockFetchRecurringTemplates,
   createTransfer: mockCreateTransfer,
 }));
 
@@ -99,6 +103,10 @@ function renderDrawer(contextOverrides = {}) {
   return { user, onClose, context };
 }
 
+const getAmountInput = () => screen.getAllByRole('spinbutton')[0];
+const getTransferAmountInput = () => screen.getAllByRole('spinbutton')[0];
+const getTransactionContentInput = () => screen.getByLabelText('Nội dung giao dịch');
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('CreateTransactionDrawer', () => {
@@ -109,24 +117,24 @@ describe('CreateTransactionDrawer', () => {
   describe('Category selection (danh mục) — không chọn trước', () => {
     it('should NOT pre-select any category when drawer opens', () => {
       renderDrawer();
-      expect(screen.getByText('Chưa chọn')).toBeInTheDocument();
+      expect(screen.getByText(/Đã chọn:\s*Chưa chọn/i)).toBeInTheDocument();
     });
 
     it('should display "Chưa chọn" when no category is selected', () => {
       renderDrawer();
-      expect(screen.getByText('Chưa chọn')).toBeInTheDocument();
+      expect(screen.getByText(/Đã chọn:\s*Chưa chọn/i)).toBeInTheDocument();
     });
 
     it('should update selected label when user clicks a category', async () => {
       const { user } = renderDrawer();
       await user.click(screen.getByText('Ăn uống'));
-      expect(screen.getByText('Đã chọn: Ăn uống')).toBeInTheDocument();
+      expect(screen.getByText(/Đã chọn:\s*Ăn uống/i)).toBeInTheDocument();
     });
 
     it('should update selected label when user clicks a child category', async () => {
       const { user } = renderDrawer();
       await user.click(screen.getByText('Cà phê'));
-      expect(screen.getByText('Đã chọn: Ăn uống / Cà phê')).toBeInTheDocument();
+      expect(screen.getByText(/Đã chọn:\s*Ăn uống \/ Cà phê/i)).toBeInTheDocument();
     });
   });
 
@@ -149,55 +157,39 @@ describe('CreateTransactionDrawer', () => {
     });
   });
 
-  describe('Transaction content field (nội dung giao dịch) — preset dropdown', () => {
+  describe('Transaction content field (nội dung giao dịch)', () => {
     it('should have "Nội dung giao dịch" label', () => {
       renderDrawer();
       expect(screen.getByText('Nội dung giao dịch')).toBeInTheDocument();
     });
 
-    it('should render preset options in the select dropdown', () => {
+    it('should render default transaction content', () => {
       renderDrawer();
-      const select = screen.getByRole('combobox');
-      const options = Array.from(select.querySelectorAll('option')).map((o) => o.textContent);
-      expect(options).toContain('Ăn uống');
-      expect(options).toContain('Di chuyển');
-      expect(options).toContain('Mua sắm');
-      expect(options).toContain('Giải trí');
-      expect(options).toContain('Y tế');
-      expect(options).toContain('Hóa đơn');
-      expect(options).toContain('Nạp tiền');
-      expect(options).toContain('Lương');
-      expect(options).toContain('Chuyển khoản');
-      expect(options).toContain('Khác (nhập tùy ý)');
+      expect(getTransactionContentInput()).toHaveValue('Mô tả giao dịch chi tiêu số 1');
     });
 
-    it('should fill preset option value when user selects from dropdown', async () => {
+    it('should allow custom content input', async () => {
       const { user } = renderDrawer();
-      const select = screen.getByRole('combobox');
-      await user.selectOptions(select, 'Di chuyển');
-      expect(select).toHaveValue('Di chuyển');
+      const input = getTransactionContentInput();
+      await user.clear(input);
+      await user.type(input, 'Di chuyển');
+      expect(input).toHaveValue('Di chuyển');
     });
 
-    it('should show custom text input when user selects "Khác (nhập tùy ý)"', async () => {
+    it('should not render legacy custom-content placeholder', async () => {
       const { user } = renderDrawer();
-      const select = screen.getByRole('combobox');
-      await user.selectOptions(select, '__custom__');
-      expect(screen.getByPlaceholderText('Nhập nội dung tùy ý...')).toBeInTheDocument();
+      await user.type(getTransactionContentInput(), ' test');
+      expect(screen.queryByPlaceholderText('Nhập nội dung tùy ý...')).not.toBeInTheDocument();
     });
 
-    it('should allow custom text input when "Khác" is selected', async () => {
+    it('should update default content when switching transaction type', async () => {
       const { user } = renderDrawer();
-      const select = screen.getByRole('combobox');
-      await user.selectOptions(select, '__custom__');
-      const customInput = screen.getByPlaceholderText('Nhập nội dung tùy ý...');
-      await user.type(customInput, 'Mua đồ cho pet');
-      expect(customInput).toHaveValue('Mua đồ cho pet');
+      await user.click(screen.getByText('Thu nhập'));
+      expect(getTransactionContentInput()).toHaveValue('Mô tả giao dịch thu nhập số 1');
     });
 
-    it('should NOT show custom input for preset options', async () => {
-      const { user } = renderDrawer();
-      const select = screen.getByRole('combobox');
-      await user.selectOptions(select, 'Ăn uống');
+    it('should NOT show legacy custom input', async () => {
+      renderDrawer();
       expect(screen.queryByPlaceholderText('Nhập nội dung tùy ý...')).not.toBeInTheDocument();
     });
   });
@@ -212,15 +204,26 @@ describe('CreateTransactionDrawer', () => {
       });
     });
 
-    it('should show error when saving without content/name', async () => {
+    it('should keep default content when saving without manual content edit', async () => {
+      mockPost.mockResolvedValueOnce({
+        data: {
+          id: 'tx_default_content',
+          wallet_id: 'wallet_1',
+          type: 'expense',
+          amount: '50000',
+          transacted_at: new Date().toISOString(),
+        },
+      });
       const { user } = renderDrawer();
-      const amountInput = screen.getByRole('spinbutton');
+      const amountInput = getAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '50000');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
       await user.click(saveButton);
       await waitFor(() => {
-        expect(screen.getByText(/Vui lòng chọn hoặc nhập nội dung/i)).toBeInTheDocument();
+        expect(mockPost).toHaveBeenCalledWith('/api/transactions', expect.objectContaining({
+          note: 'Mô tả giao dịch chi tiêu số 1',
+        }));
       });
     });
 
@@ -235,16 +238,14 @@ describe('CreateTransactionDrawer', () => {
         },
       });
       const { user } = renderDrawer();
-      const amountInput = screen.getByRole('spinbutton');
+      const amountInput = getAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '50000');
-      const select = screen.getByRole('combobox');
-      await user.selectOptions(select, 'Ăn uống');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
       await user.click(saveButton);
       await waitFor(() => {
         expect(mockPost).toHaveBeenCalledWith('/api/transactions', expect.objectContaining({
-          note: 'Ăn uống',
+          category_id: null,
         }));
       });
     });
@@ -263,11 +264,9 @@ describe('CreateTransactionDrawer', () => {
         },
       });
       const { user } = renderDrawer();
-      const amountInput = screen.getByRole('spinbutton');
+      const amountInput = getAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '50000');
-      const select = screen.getByRole('combobox');
-      await user.selectOptions(select, 'Ăn uống');
       await user.click(screen.getByText('Ăn uống'));
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
       await user.click(saveButton);
@@ -285,11 +284,12 @@ describe('CreateTransactionDrawer', () => {
         },
       });
       const { user } = renderDrawer();
-      const amountInput = screen.getByRole('spinbutton');
+      const amountInput = getAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '75000');
-      const select = screen.getByRole('combobox');
-      await user.selectOptions(select, 'Di chuyển');
+      const contentInput = getTransactionContentInput();
+      await user.clear(contentInput);
+      await user.type(contentInput, 'Di chuyển');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
       await user.click(saveButton);
       await waitFor(() => {
@@ -310,11 +310,9 @@ describe('CreateTransactionDrawer', () => {
         },
       });
       const { user } = renderDrawer();
-      const amountInput = screen.getByRole('spinbutton');
+      const amountInput = getAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '100000');
-      const select = screen.getByRole('combobox');
-      await user.selectOptions(select, 'Mua sắm');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
       await user.click(saveButton);
       await waitFor(() => {
@@ -326,14 +324,12 @@ describe('CreateTransactionDrawer', () => {
 
     it('should show error toast when API call fails', async () => {
       mockPost.mockRejectedValueOnce({
-        response: { status: 500, data: { detail: 'Server error' } },
+        response: { status: 500, data: {} },
       });
       const { user } = renderDrawer();
-      const amountInput = screen.getByRole('spinbutton');
+      const amountInput = getAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '50000');
-      const select = screen.getByRole('combobox');
-      await user.selectOptions(select, 'Ăn uống');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
       await user.click(saveButton);
       await waitFor(() => {
@@ -370,9 +366,12 @@ describe('CreateTransactionDrawer', () => {
     it('should show error when source and destination wallets are the same', async () => {
       const { user } = renderDrawer();
       await user.click(screen.getByText('Chuyển ví'));
-      const amountInput = screen.getByRole('spinbutton');
+      const amountInput = getTransferAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '100000');
+      const walletSelects = screen.getAllByRole('combobox');
+      await user.selectOptions(walletSelects[0], 'wallet_1');
+      await user.selectOptions(walletSelects[1], 'wallet_1');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
       await user.click(saveButton);
       await waitFor(() => {
@@ -386,17 +385,24 @@ describe('CreateTransactionDrawer', () => {
       });
       const { user } = renderDrawer();
       await user.click(screen.getByText('Chuyển ví'));
-      const amountInput = screen.getByRole('spinbutton');
+      const walletSelects = screen.getAllByRole('combobox');
+      await user.selectOptions(walletSelects[0], 'wallet_1');
+      await user.selectOptions(walletSelects[1], 'wallet_2');
+      const expectedNote = screen.getByRole('textbox').value;
+      expect(expectedNote).toBeTruthy();
+      const amountInput = getTransferAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '500000');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
       await user.click(saveButton);
       await waitFor(() => {
-        expect(mockCreateTransfer).toHaveBeenCalledWith(
-          expect.objectContaining({
-            amount: 500000,
-          })
-        );
+        expect(mockCreateTransfer).toHaveBeenCalledTimes(1);
+        expect(mockCreateTransfer.mock.calls[0][0]).toEqual({
+          fromWalletId: 'wallet_1',
+          toWalletId: 'wallet_2',
+          amount: 500000,
+          note: expectedNote,
+        });
       });
     });
 
@@ -404,7 +410,7 @@ describe('CreateTransactionDrawer', () => {
       mockCreateTransfer.mockResolvedValueOnce({ data: { id: 'transfer_2' } });
       const { user } = renderDrawer();
       await user.click(screen.getByText('Chuyển ví'));
-      const amountInput = screen.getByRole('spinbutton');
+      const amountInput = getTransferAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '300000');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
@@ -415,9 +421,17 @@ describe('CreateTransactionDrawer', () => {
     });
 
     it('should show insufficient balance error', async () => {
-      const { user } = renderDrawer({ wallets: [{ id: 'w1', name: 'Ví ít tiền', balance: 100000, color: '#2563eb' }] });
+      const { user } = renderDrawer({
+        wallets: [
+          { id: 'w1', name: 'Ví ít tiền', balance: 100000, color: '#2563eb' },
+          { id: 'w2', name: 'Ví nhận', balance: 0, color: '#10b981' },
+        ],
+      });
       await user.click(screen.getByText('Chuyển ví'));
-      const amountInput = screen.getByRole('spinbutton');
+      const walletSelects = screen.getAllByRole('combobox');
+      await user.selectOptions(walletSelects[0], 'w1');
+      await user.selectOptions(walletSelects[1], 'w2');
+      const amountInput = getTransferAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '500000');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
@@ -433,7 +447,7 @@ describe('CreateTransactionDrawer', () => {
       mockPost.mockResolvedValueOnce({ data: { id: 'recurring_1' } });
       const { user } = renderDrawer();
       await user.click(screen.getByText('Giao dịch định kỳ'));
-      const amountInput = screen.getByRole('spinbutton');
+      const amountInput = getAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '500000');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
@@ -449,7 +463,7 @@ describe('CreateTransactionDrawer', () => {
       mockPost.mockResolvedValueOnce({ data: { id: 'recurring_reload' } });
       const { user } = renderDrawer();
       await user.click(screen.getByText('Giao dịch định kỳ'));
-      const amountInput = screen.getByRole('spinbutton');
+      const amountInput = getAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '1000000');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
