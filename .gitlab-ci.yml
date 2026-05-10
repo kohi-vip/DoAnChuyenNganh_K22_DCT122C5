@@ -1,0 +1,135 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+    - when: never
+
+stages:
+  - lint
+  - test
+  - build
+  - security
+  - package
+
+default:
+  interruptible: true
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+variables:
+  FRONTEND_DIR: Main_Project/FE
+  BACKEND_DIR: Main_Project/BE
+  NPM_CONFIG_CACHE: "$CI_PROJECT_DIR/.npm"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: "$CI_PROJECT_DIR/Main_Project/BE/src"
+
+.frontend:
+  image: node:20.19-alpine
+  cache:
+    key:
+      files:
+        - Main_Project/FE/package-lock.json
+    paths:
+      - .npm/
+  before_script:
+    - cd "$FRONTEND_DIR"
+    - npm ci --legacy-peer-deps --prefer-offline
+
+.backend:
+  image: python:3.12-slim
+  cache:
+    key:
+      files:
+        - Main_Project/BE/requirements.txt
+    paths:
+      - .cache/pip/
+  before_script:
+    - cd "$BACKEND_DIR"
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+
+frontend:lint:
+  extends: .frontend
+  stage: lint
+  script:
+    - npm run lint
+
+frontend:test:
+  extends: .frontend
+  stage: test
+  script:
+    - npm run test
+
+backend:test:
+  extends: .backend
+  stage: test
+  script:
+    - pytest -q
+
+frontend:build:
+  extends: .frontend
+  stage: build
+  script:
+    - npm run build
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - Main_Project/FE/dist/
+
+backend:syntax:
+  extends: .backend
+  stage: build
+  script:
+    - python -m compileall src
+    - python -c "from finance_svc.asgi import app; print(app.title)"
+
+frontend:audit:
+  extends: .frontend
+  stage: security
+  script:
+    - npm audit --audit-level=high
+
+backend:audit:
+  extends: .backend
+  stage: security
+  script:
+    - pip install pip-audit
+    - pip-audit -r requirements.txt --strict
+
+docker:publish:
+  image: docker:27.5.1-cli
+  stage: package
+  services:
+    - name: docker:27.5.1-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  needs:
+    - frontend:build
+    - backend:syntax
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+    - when: never
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA" "$BACKEND_DIR"
+    - docker build -t "$CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA" "$FRONTEND_DIR"
+    - docker push "$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA"
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        docker tag "$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE/backend:latest"
+        docker tag "$CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE/frontend:latest"
+        docker push "$CI_REGISTRY_IMAGE/backend:latest"
+        docker push "$CI_REGISTRY_IMAGE/frontend:latest"
+      fi
