@@ -23,9 +23,9 @@ services:
     env_file:
       - ./BE/.env
     environment:
-      DATABASE_URL: mysql+pymysql://root:password@db:3306/finance_app
-      N8N_WEBHOOK_URL: http://n8n:5678/webhook/b7aafa14-c2fa-42bd-a770-cc46b665fe56/chat
-      N8N_OCR_WEBHOOK_URL: http://n8n:5678/webhook/1ded8354-ea5e-44a1-8f58-166bacd85700
+      DATABASE_URL: mysql+pymysql://xxx:xxx@db:3306/finance_app
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/<REDACTED_URL_PATH>/chat
+      N8N_OCR_WEBHOOK_URL: http://n8n:5678/webhook/<REDACTED_URL_PATH>
     ports:
       - "8011:8000"
     depends_on:
