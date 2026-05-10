@@ -446,7 +446,7 @@ describe('CreateTransactionDrawer', () => {
     it('should require category when switching to recurring mode', async () => {
       const { user } = renderDrawer();
       await user.click(screen.getByText('Giao dịch định kỳ'));
-      const amountInput = screen.getByRole('spinbutton');
+      const amountInput = getAmountInput();
       await user.clear(amountInput);
       await user.type(amountInput, '500000');
       const saveButton = screen.getByRole('button', { name: 'Lưu' });
